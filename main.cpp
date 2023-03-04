@@ -14,60 +14,86 @@ int main()
 
     // Create a red runner
     sf::RectangleShape runner(sf::Vector2f(10,10));
-    runner.setPosition(320, 240);
+    runner.setPosition(640, 480);
     runner.setFillColor(sf::Color::Red);
     // previous runner position
     sf::Vector2f prevRunnerPos;
 
-    bool in_street=false;
 
-    // Create a streets  
-    std::vector<sf::RectangleShape> streets;
-    int rows = 10;
-    int cols = 10;
-//    float streetSize_x = runner.getSize().x;
-//    float streetSize_y = runner.getSize().y;
-    
+    struct Node {
+        sf::Vector2f position;
+        std::vector<Node*> neighbors;
+    };
+
+    // Create nodes
+    const int rows = 10;
+    const int cols = 10;
+    const float nodeSpacing_x = window.getSize().x / (cols-1);
+    const float nodeSpacing_y = window.getSize().y / (rows-1);
+    std::vector<Node> nodes(rows * cols);
     for (int i = 0; i < rows; i++) {
-        sf::RectangleShape street(sf::Vector2f(window.getSize().x, 1));
-        street.setPosition(0, i * window.getSize().y / rows);
-        street.setFillColor(sf::Color::White);
-        streets.push_back(street);
+        for (int j = 0; j < cols; j++) {
+            Node& node = nodes[i * cols + j];
+//            node.position = sf::Vector2f(j * nodeSpacing_x, i * nodeSpacing_y);
+            // add some random to the nodes 
+            node.position = sf::Vector2f(j * nodeSpacing_x + (rand()%100) * nodeSpacing_x/300, i * nodeSpacing_y+ (rand()%100) * nodeSpacing_y/300);
+
+            // Connect to neighboring nodes
+            if (i > 0) {
+                node.neighbors.push_back(&nodes[(i - 1) * cols + j]);
+            }
+            if (j > 0) {
+                node.neighbors.push_back(&nodes[i * cols + (j - 1)]);
+            }
+            if (i < rows - 1) {
+                node.neighbors.push_back(&nodes[(i + 1) * cols + j]);
+            }
+            if (j < cols - 1) {
+                node.neighbors.push_back(&nodes[i * cols + (j + 1)]);
+            }
+        }
     }
-    for (int j = 0; j < cols; j++) {
-        sf::RectangleShape street(sf::Vector2f(1, window.getSize().y));
-        street.setPosition(j * window.getSize().x / cols, 0);
-        street.setFillColor(sf::Color::White);
-        streets.push_back(street);
+
+    // Create a circle shape for each node
+    std::vector<sf::CircleShape> nodes_sprit;
+    float nodeRadius = 2.0f;
+    for (const auto& node : nodes ) {
+        sf::CircleShape circle(nodeRadius);
+        circle.setFillColor(sf::Color::White);
+        circle.setPosition(node.position.x - nodeRadius, node.position.y - nodeRadius);
+        nodes_sprit.push_back(circle);
     }
-// matrix of points
-//    for (int i = 0; i < rows; i++) {
-//        for (int j = 0; j < cols; j++) {
-//            sf::RectangleShape street(sf::Vector2f(1, 5));
-//            street.setPosition(j * streetSize_y, i * streetSize_x);
-//            street.setFillColor(sf::Color::White);
-//            streets.push_back(street);
-//        }
-//    }
+
+    // Create a vertex array for the lines
+    sf::VertexArray lines(sf::Lines, 0);
+    
+    // Add the lines to the vertex array
+    for (const auto& node : nodes) {
+        for (const auto& neighbor : node.neighbors) {
+            sf::Vertex vertex1(node.position, sf::Color::White);
+            sf::Vertex vertex2(neighbor->position, sf::Color::White);
+            lines.append(vertex1);
+            lines.append(vertex2);
+        }
+    }
+    
+    // Set the outline thickness of the lines
+    lines.setPrimitiveType(sf::Lines);
+
+
 
     // Set the movement speed to 0.01 pixels per frame
-    float movementSpeed =0.01f;
+    float movementSpeed = 0.01f;
 
     // Run the game loop
-    while (window.isOpen())
-    {
+    while (window.isOpen()) {
         // Handle events
         sf::Event event;
-        while (window.pollEvent(event))
-        {
-            if (event.type == sf::Event::Closed)
-            {
+        while (window.pollEvent(event)) {
+            if (event.type == sf::Event::Closed) {
                 window.close();
             }
         }
-
-        // store previous runner position
-        prevRunnerPos=runner.getPosition();
 
         // Check if the shift key is pressed
         if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift) || sf::Keyboard::isKeyPressed(sf::Keyboard::RShift))
@@ -110,35 +136,29 @@ int main()
             runner.setPosition(runner.getPosition().x, window.getSize().y - runner.getSize().y);
 
 
-        // keep runer in the streets
-        in_street=false;
-        for(auto& street : streets){
-            if ((runner.getGlobalBounds().intersects(street.getGlobalBounds()))){
-                in_street=true;
-            }
-        }
-        if (!(in_street)){
-            runner.setPosition(prevRunnerPos);
-        }
-
-
+//        // keep runer in the streets
+//        in_street=false;
+//        for(auto& street : streets){
+//            if ((runner.getGlobalBounds().intersects(street.getGlobalBounds()))){
+//                in_street=true;
+//            }
+//        }
+//        if (!(in_street)){
+//            runner.setPosition(prevRunnerPos);
+//        }
+//
+//
         // Clear the window
         window.clear(sf::Color::Black);
 
-        //sanity check
-        in_street=false;
-        for(auto& street : streets){
-            if ((runner.getGlobalBounds().intersects(street.getGlobalBounds()))){
-                in_street=true;
-            }
-        }
-        if (in_street){
-            window.draw(SanityCheck);
-        }
 
-        // Draw the street
-        for (auto& street : streets)
-            window.draw(street);
+        // Draw the Nodes
+        for (const auto& node : nodes_sprit) {
+            window.draw(node);
+        }
+        // Draw lines
+//        window.draw(lines.data(), lines.size(), sf::Lines);
+        window.draw(lines);
 
         // Draw the runner
         window.draw(runner);
