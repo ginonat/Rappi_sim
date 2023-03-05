@@ -66,7 +66,7 @@ void drawArrows(sf::RenderWindow& window, Node* node) {
         text.setCharacterSize(14);
         text.setFillColor(lineColor);
         text.setOutlineColor(lineColor);
-        text.setOutlineThickness(0.1f);
+        text.setOutlineThickness(0.01f);
         sf::FloatRect textBounds = text.getLocalBounds();
         text.setOrigin(textBounds.width / 2.f, textBounds.height / 2.f);
         text.setPosition(midpoint);
@@ -169,12 +169,8 @@ int main()
     Runner runner_A(&nodes[35], sf::Vector2f(10, 10), sf::Color::Red);
 
 
-
-    
-
-
-// sanity check
-// Print out the current node and its neighbors for each runner
+    // sanity check
+    // Print out the current node and its neighbors for each runner
     std::cout << "Current node position: " << runner_A.current_node->position.x << ", " << runner_A.current_node->position.y << std::endl;
     std::cout << "Neighbor nodes positions: ";
     for (const auto& n : runner_A.current_node->neighbors) {
@@ -193,18 +189,15 @@ int main()
             }
 
            // Check if the event is a key release
-            if (event.type == sf::Event::KeyReleased) {
-                // Check if the key released is the right arrow key
-                if (event.key.code == sf::Keyboard::Right) {
-                    // Change the current node of runner_A to one of its neighbors
-                    runner_A.moveToNextNode(1); // move to the second neighbor of the current node
+            if (event.type == sf::Event::KeyPressed) {
+                // Check if the key pressed is a number key between 0 and the maximum neighbor index
+                if (event.key.code >= sf::Keyboard::Num0 && event.key.code <= sf::Keyboard::Num9) {
+                    std::vector<Node*>::size_type neighborIndex = event.key.code - sf::Keyboard::Num0;
+                    if (neighborIndex < runner_A.current_node->neighbors.size()) {
+                        runner_A.moveToNextNode(neighborIndex);
+                        std::cout << "Runner A moved to node at position (" << runner_A.current_node->neighbors[neighborIndex]->position.x << ", " << runner_A.current_node->neighbors[neighborIndex]->position.y << ")" << std::endl;
+                    }
                 }
-                // Check if the key released is the left arrow key
-                if (event.key.code == sf::Keyboard::Left) {
-                    // Change the current node of runner_A to one of its neighbors
-                    runner_A.moveToNextNode(0); // move to the first neighbor of the current node
-                }
-                std::cout << "Runner A moved to node at position (" << runner_A.current_node->neighbors[1]->position.x << ", " << runner_A.current_node->neighbors[1]->position.y << ")" << std::endl;
             }
         }
 
@@ -220,7 +213,6 @@ int main()
             drawArrows(window, runner_A.current_node);
         }
         // Draw streets
-//        window.draw(streets.data(), streets.size(), sf::streets);
         window.draw(streets);
 
         // Draw the runner
