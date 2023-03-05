@@ -74,27 +74,35 @@ int main()
 
 
     // runners struct
-    struct runner {
+    struct Runner {
         sf::RectangleShape box;
         Node* current_node;
-    };
+        float movement_speed = 0.01f;
+    
+        Runner(Node* start_node, sf::Vector2f box_size = sf::Vector2f(10, 10), sf::Color box_color = sf::Color::Red, float movement_speed = 0.01f)
+            : current_node(start_node), movement_speed(movement_speed)
+   
+        {
+            box.setPosition(current_node->position);
+            box.setSize(box_size);
+            box.setFillColor(box_color);
+        }
 
+        void moveToNextNode(long unsigned int neighborIndex) {
+            if (!current_node->neighbors.empty()) {
+                if (neighborIndex >= 0 && neighborIndex < current_node->neighbors.size()) {
+                    current_node = current_node->neighbors[neighborIndex];
+                    box.setPosition(current_node->position);
+                }
+            }
+        }
+    };
+    
     // Create a red runner
-    runner runner_A;
-    // starting initial node
-    runner_A.current_node=&nodes[35];
-    // set sprit box size 
-    runner_A.box.setSize(sf::Vector2f(10,10));
-    // paint runner_A red
-    runner_A.box.setFillColor(sf::Color::Red);
-    // place runner_A to node position
-    runner_A.box.setPosition(runner_A.current_node->position);
-    // Set the movement speed to 0.01 pixels per frame
-    float movementSpeed = 0.01f;
+    Runner runner_A(&nodes[35], sf::Vector2f(10, 10), sf::Color::Red);
 
 // sanity check
 // Print out the current node and its neighbors for each runner
-//    std::cout << "Runner position: " << runner_A.position.x << ", " << runner_A.position.y << std::endl;
     std::cout << "Current node position: " << runner_A.current_node->position.x << ", " << runner_A.current_node->position.y << std::endl;
     std::cout << "Neighbor nodes positions: ";
     for (const auto& n : runner_A.current_node->neighbors) {
@@ -114,66 +122,21 @@ int main()
 
            // Check if the event is a key release
             if (event.type == sf::Event::KeyReleased) {
-                // Check if the key released is the left arrow key
+                // Check if the key released is the right arrow key
                 if (event.key.code == sf::Keyboard::Right) {
                     // Change the current node of runner_A to one of its neighbors
-                    if (!runner_A.current_node->neighbors.empty()) {
-                        runner_A.box.setPosition(runner_A.current_node->neighbors[1]->position);
-                        std::cout << "Runner A moved to node at position (" << runner_A.current_node->neighbors[1]->position.x << ", " << runner_A.current_node->neighbors[1]->position.y << ")" << std::endl;
-                        runner_A.current_node=runner_A.current_node->neighbors[1];
-                    }
+                    runner_A.moveToNextNode(1); // move to the second neighbor of the current node
                 }
+                // Check if the key released is the left arrow key
                 if (event.key.code == sf::Keyboard::Left) {
                     // Change the current node of runner_A to one of its neighbors
-                    if (!runner_A.current_node->neighbors.empty()) {
-                        runner_A.box.setPosition(runner_A.current_node->neighbors[0]->position);
-                        std::cout << "Runner A moved to node at position (" << runner_A.current_node->neighbors[0]->position.x << ", " << runner_A.current_node->neighbors[0]->position.y << ")" << std::endl;
-                        runner_A.current_node=runner_A.current_node->neighbors[0];
-                    }
+                    runner_A.moveToNextNode(0); // move to the first neighbor of the current node
                 }
+                std::cout << "Runner A moved to node at position (" << runner_A.current_node->neighbors[1]->position.x << ", " << runner_A.current_node->neighbors[1]->position.y << ")" << std::endl;
             }
         }
 
-        // Check if the shift key is pressed
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::LShift) || sf::Keyboard::isKeyPressed(sf::Keyboard::RShift))
-        {
-            // Increase the movement speed if the shift key is pressed
-            movementSpeed = 0.03f;
-        }
-        else
-        {
-            // Reset the movement speed if the shift key is not pressed
-            movementSpeed = 0.01f;
-        }
-        // Update the runner's position based on the arrow keys
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Left))
-        {
-            runner_A.box.move(-movementSpeed, 0);
-        }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Right))
-        {
-            runner_A.box.move(movementSpeed, 0);
-        }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Up))
-        {
-            runner_A.box.move(0, -movementSpeed);
-        }
-        if (sf::Keyboard::isKeyPressed(sf::Keyboard::Down))
-        {
-            runner_A.box.move(0, movementSpeed);
-        }
 
-        // Stop the runner from leaving the window
-
-//        if (runner.getPosition().x < 0)
-//            runner.setPosition(0, runner.getPosition().y);
-//        if (runner.getPosition().y < 0)
-//            runner.setPosition(runner.getPosition().x, 0);
-//        if (runner.getPosition().x + runner.getSize().x > window.getSize().x)
-//            runner.setPosition(window.getSize().x - runner.getSize().x, runner.getPosition().y);
-//        if (runner.getPosition().y + runner.getSize().y > window.getSize().y)
-//            runner.setPosition(runner.getPosition().x, window.getSize().y - runner.getSize().y);
-//
 
         // Clear the window
         window.clear(sf::Color::Black);
