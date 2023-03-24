@@ -1,17 +1,19 @@
-CC = g++
-CFLAGS = -Wall -std=c++11 -c
+CXX = g++
+CXXFLAGS = -Wall -Werror -pedantic -std=c++11
+LDFLAGS = -lsfml-graphics -lsfml-window -lsfml-system
 
-TARGET = main
-SOURCES = main.cpp
+SRCDIR = src
+OBJDIR = obj
 
-all: $(TARGET)
+SRCS := $(wildcard $(SRCDIR)/*.cpp)
+OBJS := $(patsubst $(SRCDIR)/%.cpp,$(OBJDIR)/%.o,$(SRCS))
 
-$(TARGET): $(SOURCES)
-	$(CC) $(CFLAGS)  $(SOURCES)
-	$(CC)  main.o -o $(TARGET) -lsfml-graphics -lsfml-window -lsfml-system
+rappi_sim: $(OBJS)
+	$(CXX) $^ -o $@ $(LDFLAGS)
 
+$(OBJDIR)/%.o: $(SRCDIR)/%.cpp
+	$(CXX) $(CXXFLAGS) -c $< -o $@
+
+.PHONY: clean
 clean:
-	rm -f $(TARGET)
-	
-
-
+	rm -f $(OBJDIR)/*.o rappi_sim
