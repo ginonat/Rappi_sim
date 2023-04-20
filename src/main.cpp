@@ -1,5 +1,6 @@
 #include <iostream>
 #include <SFML/Graphics.hpp>
+#include <SFML/System/Vector2.hpp>
 #include <cmath> 
 
 #include "../include/draw.h"
@@ -108,6 +109,22 @@ int main()
         // Clear the window
         window.clear(sf::Color::Black);
 
+        // Interpolate runner position towards target node
+        sf::Vector2f distance_to_target = runner_A.target_node->position - runner_A.box.getPosition();
+        float distance = std::sqrt(distance_to_target.x * distance_to_target.x + distance_to_target.y * distance_to_target.y);
+        if (distance > 0) {
+            sf::Vector2f direction = distance_to_target / distance;
+            sf::Vector2f velocity = direction * runner_A.movement_speed;
+            sf::Vector2f new_position = runner_A.box.getPosition() + velocity;
+            if (distance < runner_A.movement_speed) {
+                new_position = runner_A.target_node->position;
+                runner_A.current_node = runner_A.target_node;
+            }
+            runner_A.box.setPosition(new_position);
+            std::cout << "My pos is: (" << new_position.x << ", " << new_position.y << ")" << std::endl;
+
+
+        }
 
         // Draw the Nodes
         for (const auto& node : nodes_sprit) {

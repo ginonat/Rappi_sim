@@ -10,9 +10,10 @@ struct Node;
 struct Runner {
     sf::RectangleShape box;
     Node* current_node;
-    float movement_speed = 0.01f;
+    Node* target_node;
+    float movement_speed;
 
-    Runner(Node* start_node, sf::Vector2f box_size = sf::Vector2f(10, 10), sf::Color box_color = sf::Color::Red, float movement_speed = 0.01f);
+    Runner(Node* start_node, sf::Vector2f box_size = sf::Vector2f(10, 10), sf::Color box_color = sf::Color::Red, float movement_speed = 1.0f);
 
     void moveToNextNode(long unsigned int neighborIndex);
 };
