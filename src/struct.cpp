@@ -14,6 +14,7 @@ void Runner::moveToNextNode(long unsigned int neighborIndex) {
     if (!this->current_node->neighbors.empty()) {
         if (neighborIndex >= 0 && neighborIndex < this->current_node->neighbors.size()) {
             this->target_node  = this->current_node->neighbors[neighborIndex];
+            this->running      = true;
         }
     }
 }

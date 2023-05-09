@@ -98,7 +98,7 @@ int main()
                 // Check if the key pressed is a number key between 0 and the maximum neighbor index
                 if (event.key.code >= sf::Keyboard::Num0 && event.key.code <= sf::Keyboard::Num9) {
                     std::vector<Node*>::size_type neighborIndex = event.key.code - sf::Keyboard::Num0;
-                    if (neighborIndex < runner_A.current_node->neighbors.size()) {
+                    if (neighborIndex < runner_A.current_node->neighbors.size() && runner_A.running==false) {
                         runner_A.moveToNextNode(neighborIndex);
                         std::cout << "Runner A moved to node at position (" << runner_A.current_node->neighbors[neighborIndex]->position.x << ", " << runner_A.current_node->neighbors[neighborIndex]->position.y << ")" << std::endl;
                     }
@@ -119,6 +119,7 @@ int main()
             if (distance < runner_A.movement_speed) {
                 new_position = runner_A.target_node->position;
                 runner_A.current_node = runner_A.target_node;
+                runner_A.running      = false;
             }
             runner_A.box.setPosition(new_position);
             std::cout << "My pos is: (" << new_position.x << ", " << new_position.y << ")" << std::endl;

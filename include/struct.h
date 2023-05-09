@@ -12,6 +12,7 @@ struct Runner {
     Node* current_node;
     Node* target_node;
     float movement_speed;
+    bool running =false;
 
     Runner(Node* start_node, sf::Vector2f box_size = sf::Vector2f(10, 10), sf::Color box_color = sf::Color::Red, float movement_speed = 1.0f);
 
