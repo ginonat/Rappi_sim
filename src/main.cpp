@@ -71,17 +71,7 @@ int main()
     streets.setPrimitiveType(sf::Lines);
     
     // Create a red runner
-    Runner runner_A(&nodes[35], sf::Vector2f(10, 10), sf::Color::Red);
-
-
-    // sanity check
-    // Print out the current node and its neighbors for each runner
-    std::cout << "Current node position: " << runner_A.current_node->position.x << ", " << runner_A.current_node->position.y << std::endl;
-    std::cout << "Neighbor nodes positions: ";
-    for (const auto& n : runner_A.current_node->neighbors) {
-        std::cout << "(" << n->position.x << ", " << n->position.y << ") ";
-    }
-    std::cout << std::endl;
+    std::vector<Runner> runners;
 
 
     // Run the game loop
@@ -93,14 +83,23 @@ int main()
                 window.close();
             }
 
-           // Check if the event is a key release
+           // Add new runner
+            if (event.type == sf::Event::KeyPressed) {
+                if (event.key.code >= sf::Keyboard::Add) {
+                    Node* start_node = &nodes[rand() % nodes.size()];
+                    runners.emplace_back(start_node, sf::Vector2f(10, 10), sf::Color::Blue, 0.03f);
+                }
+            }
+           // Check if the event is a keyPressed
             if (event.type == sf::Event::KeyPressed) {
                 // Check if the key pressed is a number key between 0 and the maximum neighbor index
                 if (event.key.code >= sf::Keyboard::Num0 && event.key.code <= sf::Keyboard::Num9) {
                     std::vector<Node*>::size_type neighborIndex = event.key.code - sf::Keyboard::Num0;
-                    if (neighborIndex < runner_A.current_node->neighbors.size() && runner_A.running==false) {
-                        runner_A.moveToNextNode(neighborIndex);
-                        std::cout << "Runner A moved to node at position (" << runner_A.current_node->neighbors[neighborIndex]->position.x << ", " << runner_A.current_node->neighbors[neighborIndex]->position.y << ")" << std::endl;
+                    for (auto& runner : runners) {
+                        if (neighborIndex < runner.current_node->neighbors.size() && runner.running==false) {
+                            runner.moveToNextNode(neighborIndex);
+                            std::cout << "Runner A moved to node at position (" << runner.current_node->neighbors[neighborIndex]->position.x << ", " << runner.current_node->neighbors[neighborIndex]->position.y << ")" << std::endl;
+                        }
                     }
                 }
             }
@@ -110,33 +109,46 @@ int main()
         window.clear(sf::Color::Black);
 
         // Interpolate runner position towards target node
-        sf::Vector2f distance_to_target = runner_A.target_node->position - runner_A.box.getPosition();
-        float distance = std::sqrt(distance_to_target.x * distance_to_target.x + distance_to_target.y * distance_to_target.y);
-        if (distance > 0) {
-            sf::Vector2f direction = distance_to_target / distance;
-            sf::Vector2f velocity = direction * runner_A.movement_speed;
-            sf::Vector2f new_position = runner_A.box.getPosition() + velocity;
-            if (distance < runner_A.movement_speed) {
-                new_position = runner_A.target_node->position;
-                runner_A.current_node = runner_A.target_node;
-                runner_A.running      = false;
-            }
-            runner_A.box.setPosition(new_position);
-            std::cout << "My pos is: (" << new_position.x << ", " << new_position.y << ")" << std::endl;
 
+        for (auto& runner : runners) {
+            sf::Vector2f distance_to_target = runner.target_node->position - runner.box.getPosition();
+            float distance = std::sqrt(distance_to_target.x * distance_to_target.x + distance_to_target.y * distance_to_target.y);
+            if (distance > 0) {
+                sf::Vector2f direction = distance_to_target / distance;
+                sf::Vector2f velocity = direction * runner.movement_speed;
+                sf::Vector2f new_position = runner.box.getPosition() + velocity;
+                if (distance < runner.movement_speed) {
+                    new_position = runner.target_node->position;
+                    runner.current_node = runner.target_node;
+                    runner.running      = false;
+                }
+                runner.box.setPosition(new_position);
+                //std::cout << "My pos is: (" << new_position.x << ", " << new_position.y << ")" << std::endl;
+            }
+//            if (runner.running==false){
+//                drawArrows(window, runner.current_node);
+//            }
 
         }
 
         // Draw the Nodes
         for (const auto& node : nodes_sprit) {
             window.draw(node);
-            drawArrows(window, runner_A.current_node);
         }
+
         // Draw streets
         window.draw(streets);
 
-        // Draw the runner
-        window.draw(runner_A.box);
+        // Draw the runners
+        for (auto& runner : runners) {
+            // Update runner position if it is running
+            if (runner.running) {
+                // ...
+            }
+
+            // Draw the runner
+            window.draw(runner.box);
+        }
 
         // Display the window
         window.display();
