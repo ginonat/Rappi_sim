@@ -12,7 +12,7 @@
 int main()
 {
     // Create a window with a black background
-    sf::RenderWindow window(sf::VideoMode(640, 480), "My Window", sf::Style::Titlebar | sf::Style::Close);
+    sf::RenderWindow window(sf::VideoMode(640, 480), "My Window", sf::Style::Titlebar | sf::Style::Close | sf::Style::Resize);
     window.clear(sf::Color::Black);
 
 
@@ -85,6 +85,8 @@ int main()
         while (window.pollEvent(event)) {
             if (event.type == sf::Event::Closed) {
                 window.close();
+            } else if (event.type == sf::Event::Resized) {
+                window.setView(sf::View(sf::FloatRect(0, 0, event.size.width, event.size.height)));
             }
 
            // check for edit mode in every event keyPressed
