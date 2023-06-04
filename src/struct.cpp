@@ -10,12 +10,11 @@ Runner::Runner(Node* start_node, sf::Vector2f box_size, sf::Color box_color, flo
     box.setFillColor(box_color);
 }
 
-void Runner::moveToNextNode(long unsigned int neighborIndex) {
+void Runner::moveToNextNode() {
     if (!this->current_node->neighbors.empty()) {
-        if (neighborIndex >= 0 && neighborIndex < this->current_node->neighbors.size()) {
-            this->target_node  = this->current_node->neighbors[neighborIndex];
-            this->running      = true;
-        }
+        std::vector<Node*>::size_type neighborIndex = rand() % this->current_node->neighbors.size();
+        this->target_node  = this->current_node->neighbors[neighborIndex];
+        this->running      = true;
     }
 }
 

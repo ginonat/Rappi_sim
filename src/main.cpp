@@ -92,14 +92,15 @@ int main()
             }
            // Check if the event is a keyPressed
             if (event.type == sf::Event::KeyPressed) {
-                // Check if the key pressed is a number key between 0 and the maximum neighbor index
-                if (event.key.code >= sf::Keyboard::Num0 && event.key.code <= sf::Keyboard::Num9) {
-                    std::vector<Node*>::size_type neighborIndex = event.key.code - sf::Keyboard::Num0;
-                    for (auto& runner : runners) {
-                        if (neighborIndex < runner.current_node->neighbors.size() && runner.running==false) {
-                            runner.moveToNextNode(neighborIndex);
-                            std::cout << "Runner A moved to node at position (" << runner.current_node->neighbors[neighborIndex]->position.x << ", " << runner.current_node->neighbors[neighborIndex]->position.y << ")" << std::endl;
-                        }
+                for (auto& runner : runners) {
+                    // Check if the runner has reached its target node
+                    if (runner.running && runner.box.getPosition() == runner.target_node->position) {
+                        runner.current_node = runner.target_node;
+                        runner.running = false;
+                    }
+                    // If the runner is not currently running, select a new target node
+                    if (!runner.running) {
+                        runner.moveToNextNode();
                     }
                 }
             }

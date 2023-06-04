@@ -16,7 +16,7 @@ struct Runner {
 
     Runner(Node* start_node, sf::Vector2f box_size = sf::Vector2f(10, 10), sf::Color box_color = sf::Color::Red, float movement_speed = 1.0f);
 
-    void moveToNextNode(long unsigned int neighborIndex);
+    void moveToNextNode();
 };
 
 // Node struct
