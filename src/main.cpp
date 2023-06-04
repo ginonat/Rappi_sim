@@ -119,7 +119,7 @@ int main()
                     }
                 }
             }
-            if (edit_mode) {
+            if (edit_mode) { 
                 if (sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
                     sf::Vector2i mousePos = sf::Mouse::getPosition(window);
                     float closestDist = std::numeric_limits<float>::max();
@@ -132,6 +132,18 @@ int main()
                         }
                     }
                     std::cout << "Selected node: position=(" << closestNode->position.x << "," << closestNode->position.y << ")"  << std::endl;
+                    
+                    // Highlight the selected node by blinking in red
+                    sf::CircleShape nodeCircle(10.0f);
+                    nodeCircle.setFillColor(sf::Color::Red);
+                    nodeCircle.setPosition(closestNode->position.x - 10.0f, closestNode->position.y - 10.0f);
+                    for (int i = 0; i < 6; i++) {
+                        window.draw(nodeCircle);
+                        window.display();
+                        sf::sleep(sf::milliseconds(100));
+                        window.clear();
+                        window.draw(streets);
+                    }
                 }
             } else { 
                 if (event.type == sf::Event::KeyPressed) {
