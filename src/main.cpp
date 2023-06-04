@@ -15,6 +15,15 @@ int main()
     sf::RenderWindow window(sf::VideoMode(640, 480), "My Window", sf::Style::Titlebar | sf::Style::Close | sf::Style::Resize);
     window.clear(sf::Color::Black);
 
+    // create a view object
+    sf::View view(window.getDefaultView());
+    window.setView(view);
+
+    // zoom and view movement parameters
+    float zoomFactor = std::pow(1.1f, 1);
+    float delta;
+    float zoom=1;
+
 
     // edit mode set so false 
     bool edit_mode = false;
@@ -87,6 +96,16 @@ int main()
                 window.close();
             } else if (event.type == sf::Event::Resized) {
                 window.setView(sf::View(sf::FloatRect(0, 0, event.size.width, event.size.height)));
+            } else if (event.type == sf::Event::MouseWheelMoved) {
+                sf::Vector2f mousePosition(sf::Mouse::getPosition(window));
+                sf::Vector2f center(view.getCenter());
+                delta = event.mouseWheel.delta;
+                zoomFactor = std::pow(1.1f, delta);
+                zoom = zoom * zoomFactor;
+                view.setSize(window.getDefaultView().getSize() / zoom);
+                view.setCenter((mousePosition));
+                std::cout << "setCenter x: " << window.getDefaultView().getSize().x << "zoom" << zoomFactor << window.getDefaultView().getSize().x / zoomFactor << std::endl;
+                window.setView(view);
             }
 
            // check for edit mode in every event keyPressed
