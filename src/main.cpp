@@ -1,4 +1,5 @@
 #include <iostream>
+#include <limits>
 #include <SFML/Graphics.hpp>
 #include <SFML/System/Vector2.hpp>
 #include <cmath> 
@@ -14,6 +15,9 @@ int main()
     sf::RenderWindow window(sf::VideoMode(640, 480), "My Window", sf::Style::Titlebar | sf::Style::Close);
     window.clear(sf::Color::Black);
 
+
+    // edit mode set so false 
+    bool edit_mode = false;
 
     // Create nodes
     const int rows = 10;
@@ -83,25 +87,52 @@ int main()
                 window.close();
             }
 
-           // Add new runner
+           // check for edit mode in every event keyPressed
             if (event.type == sf::Event::KeyPressed) {
-                if (event.key.code >= sf::Keyboard::Add) {
-                    Node* start_node = &nodes[rand() % nodes.size()];
-                    runners.emplace_back(start_node, sf::Vector2f(10, 10), sf::Color::Blue, 0.03f);
+                if (event.key.code == sf::Keyboard::E) {
+                    edit_mode = !edit_mode;
+                    if (edit_mode) {
+                        window.setTitle("Paused: Edit mode on");
+                    } else {
+                        window.setTitle("Unpaused: Edit mode off");
+                    }
                 }
             }
-           // Check if the event is a keyPressed
-            if (event.type == sf::Event::KeyPressed) {
-                for (auto& runner : runners) {
-                    // Check if the runner has reached its target node
-                    if (runner.running && runner.box.getPosition() == runner.target_node->position) {
-                        runner.current_node = runner.target_node;
-                        runner.running = false;
+            if (edit_mode) {
+                if (sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
+                    sf::Vector2i mousePos = sf::Mouse::getPosition(window);
+                    float closestDist = std::numeric_limits<float>::max();
+                    Node* closestNode = nullptr;
+                    for (auto& node : nodes) {
+                        float dist = std::sqrt(std::pow(node.position.x - mousePos.x, 2) + std::pow(node.position.y - mousePos.y, 2));
+                        if (dist < closestDist) {
+                            closestDist = dist;
+                            closestNode = &node;
+                        }
                     }
-                    // If the runner is not currently running, select a new target node
-                    if (!runner.running) {
-                        runner.moveToNextNode();
+                    std::cout << "Selected node: position=(" << closestNode->position.x << "," << closestNode->position.y << ")"  << std::endl;
+                }
+            } else { 
+                if (event.type == sf::Event::KeyPressed) {
+                    // Add new runner
+                    if (event.key.code >= sf::Keyboard::Add) {
+                        Node* start_node = &nodes[rand() % nodes.size()];
+                        runners.emplace_back(start_node, sf::Vector2f(10, 10), sf::Color::Blue, 0.03f);
                     }
+                }
+            }
+        }
+        if (!edit_mode) { 
+            // Check if the event is a keyPressed
+            for (auto& runner : runners) {
+                // Check if the runner has reached its target node
+                if (runner.running && runner.box.getPosition() == runner.target_node->position) {
+                    runner.current_node = runner.target_node;
+                    runner.running = false;
+                }
+                // If the runner is not currently running, select a new target node
+                if (!runner.running) {
+                    runner.moveToNextNode();
                 }
             }
         }
