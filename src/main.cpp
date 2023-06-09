@@ -27,6 +27,7 @@ int main()
 
     // edit mode set so false 
     bool edit_mode = false;
+    sf::CircleShape nodeCircle(5.0f);
 
     // Create nodes
     const int rows = 10;
@@ -134,17 +135,9 @@ int main()
                     std::cout << "Selected node: position=(" << closestNode->position.x << "," << closestNode->position.y << ")"  << std::endl;
                     
                     // Highlight the selected node by blinking in red
-                    sf::CircleShape nodeCircle(10.0f);
                     nodeCircle.setFillColor(sf::Color::Red);
-                    nodeCircle.setPosition(closestNode->position.x - 10.0f, closestNode->position.y - 10.0f);
-                    for (int i = 0; i < 6; i++) {
-                        window.draw(nodeCircle);
-                        window.display();
-                        sf::sleep(sf::milliseconds(100));
-                        window.clear();
-                        window.draw(streets);
+                    nodeCircle.setPosition(closestNode->position.x - 5.0f, closestNode->position.y - 5.0f);
                     }
-                }
             } else { 
                 if (event.type == sf::Event::KeyPressed) {
                     // Add new runner
@@ -213,6 +206,9 @@ int main()
 
             // Draw the runner
             window.draw(runner.box);
+        }
+        if (edit_mode and (nodeCircle.getPosition() != sf::Vector2f(0,0)) ){
+            window.draw(nodeCircle);
         }
 
         // Display the window
