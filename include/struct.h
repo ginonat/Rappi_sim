@@ -6,6 +6,11 @@
 // Forward declaration of Node struct
 struct Node;
 
+// Shop structure
+struct Shop {
+    sf::Vector2f position;
+};
+
 // Runner struct
 struct Runner {
     sf::RectangleShape box;
@@ -23,4 +28,5 @@ struct Runner {
 struct Node {
     sf::Vector2f position;
     std::vector<Node*> neighbors;
+    bool has_shop = false;
 };

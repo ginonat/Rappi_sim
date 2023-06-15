@@ -28,6 +28,9 @@ int main()
     // edit mode set so false 
     bool edit_mode = false;
     sf::CircleShape nodeCircle(5.0f);
+    Node* closestNode = nullptr;
+    float shopRadius=5;
+    sf::CircleShape shopCircle(shopRadius);
 
     // Create nodes
     const int rows = 10;
@@ -61,8 +64,8 @@ int main()
     // Create a circle shape for each node
     std::vector<sf::CircleShape> nodes_sprit;
     float nodeRadius = 2.0f;
+    sf::CircleShape circle(nodeRadius);
     for (const auto& node : nodes ) {
-        sf::CircleShape circle(nodeRadius);
         circle.setFillColor(sf::Color::White);
         circle.setPosition(node.position.x - nodeRadius, node.position.y - nodeRadius);
         nodes_sprit.push_back(circle);
@@ -124,7 +127,6 @@ int main()
                 if (sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
                     sf::Vector2i mousePos = sf::Mouse::getPosition(window);
                     float closestDist = std::numeric_limits<float>::max();
-                    Node* closestNode = nullptr;
                     for (auto& node : nodes) {
                         float dist = std::sqrt(std::pow(node.position.x - mousePos.x, 2) + std::pow(node.position.y - mousePos.y, 2));
                         if (dist < closestDist) {
@@ -134,10 +136,17 @@ int main()
                     }
                     std::cout << "Selected node: position=(" << closestNode->position.x << "," << closestNode->position.y << ")"  << std::endl;
                     
-                    // Highlight the selected node by blinking in red
+                    // Highlight the selected node by turning red
                     nodeCircle.setFillColor(sf::Color::Red);
                     nodeCircle.setPosition(closestNode->position.x - 5.0f, closestNode->position.y - 5.0f);
                     }
+                if (sf::Keyboard::isKeyPressed(sf::Keyboard::S) and closestNode!=nullptr) {
+                    closestNode->has_shop = true;
+                    std::cout << "test"  << std::endl;
+                    shopCircle.setFillColor(sf::Color::White);
+                    shopCircle.setPosition(closestNode->position.x - shopRadius, closestNode->position.y - shopRadius);
+                    nodes_sprit.push_back(shopCircle);
+                }
             } else { 
                 if (event.type == sf::Event::KeyPressed) {
                     // Add new runner
@@ -183,9 +192,6 @@ int main()
                 runner.box.setPosition(new_position);
                 //std::cout << "My pos is: (" << new_position.x << ", " << new_position.y << ")" << std::endl;
             }
-//            if (runner.running==false){
-//                drawArrows(window, runner.current_node);
-//            }
 
         }
 
