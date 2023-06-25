@@ -6,6 +6,7 @@
 
 #include "../include/draw.h"
 #include "../include/struct.h"
+#include "../include/buildCity.h"
 
 
 
@@ -27,49 +28,22 @@ int main()
 
     // edit mode set so false 
     bool edit_mode = false;
-    sf::CircleShape nodeCircle(5.0f);
+    sf::CircleShape nodeSelect(5.0f);
     Node* closestNode = nullptr;
     float shopRadius=5;
     sf::CircleShape shopCircle(shopRadius);
+    shopCircle.setFillColor(sf::Color::Yellow);
 
     // Create nodes
     const int rows = 10;
     const int cols = 10;
-    const float nodeSpacing_x = window.getSize().x / (cols-1);
-    const float nodeSpacing_y = window.getSize().y / (rows-1);
     std::vector<Node> nodes(rows * cols);
-    for (int i = 0; i < rows; i++) {
-        for (int j = 0; j < cols; j++) {
-            Node& node = nodes[i * cols + j];
-//            node.position = sf::Vector2f(j * nodeSpacing_x, i * nodeSpacing_y);
-            // add some random to the nodes 
-            node.position = sf::Vector2f(j * nodeSpacing_x + (rand()%100) * nodeSpacing_x/300, i * nodeSpacing_y+ (rand()%100) * nodeSpacing_y/300);
+    nodes= createNodes(rows, cols, window);
 
-            // Connect to neighboring nodes
-            if (i > 0) {
-                node.neighbors.push_back(&nodes[(i - 1) * cols + j]);
-            }
-            if (j > 0) {
-                node.neighbors.push_back(&nodes[i * cols + (j - 1)]);
-            }
-            if (i < rows - 1) {
-                node.neighbors.push_back(&nodes[(i + 1) * cols + j]);
-            }
-            if (j < cols - 1) {
-                node.neighbors.push_back(&nodes[i * cols + (j + 1)]);
-            }
-        }
-    }
-
-    // Create a circle shape for each node
-    std::vector<sf::CircleShape> nodes_sprit;
+    // Create a circle shape for the nodes
     float nodeRadius = 2.0f;
-    sf::CircleShape circle(nodeRadius);
-    for (const auto& node : nodes ) {
-        circle.setFillColor(sf::Color::White);
-        circle.setPosition(node.position.x - nodeRadius, node.position.y - nodeRadius);
-        nodes_sprit.push_back(circle);
-    }
+    sf::CircleShape nodeCircle(nodeRadius);
+    nodeCircle.setFillColor(sf::Color::White);
 
     // Create a vertex array for the streets
     sf::VertexArray streets(sf::Lines, 0);
@@ -87,7 +61,7 @@ int main()
     // Set the outline thickness of the streets
     streets.setPrimitiveType(sf::Lines);
     
-    // Create a red runner
+    // Create a vector to store the red runners
     std::vector<Runner> runners;
 
 
@@ -137,15 +111,11 @@ int main()
                     std::cout << "Selected node: position=(" << closestNode->position.x << "," << closestNode->position.y << ")"  << std::endl;
                     
                     // Highlight the selected node by turning red
-                    nodeCircle.setFillColor(sf::Color::Red);
-                    nodeCircle.setPosition(closestNode->position.x - 5.0f, closestNode->position.y - 5.0f);
+                    nodeSelect.setFillColor(sf::Color::Red);
+                    nodeSelect.setPosition(closestNode->position.x - 5.0f, closestNode->position.y - 5.0f);
                     }
                 if (sf::Keyboard::isKeyPressed(sf::Keyboard::S) and closestNode!=nullptr) {
                     closestNode->has_shop = true;
-                    std::cout << "test"  << std::endl;
-                    shopCircle.setFillColor(sf::Color::White);
-                    shopCircle.setPosition(closestNode->position.x - shopRadius, closestNode->position.y - shopRadius);
-                    nodes_sprit.push_back(shopCircle);
                 }
             } else { 
                 if (event.type == sf::Event::KeyPressed) {
@@ -195,26 +165,11 @@ int main()
 
         }
 
-        // Draw the Nodes
-        for (const auto& node : nodes_sprit) {
-            window.draw(node);
-        }
+        drawCity(window, nodes, nodeCircle, streets, shopCircle);
+        drawRunners(window, runners);
 
-        // Draw streets
-        window.draw(streets);
-
-        // Draw the runners
-        for (auto& runner : runners) {
-            // Update runner position if it is running
-            if (runner.running) {
-                // ...
-            }
-
-            // Draw the runner
-            window.draw(runner.box);
-        }
-        if (edit_mode and (nodeCircle.getPosition() != sf::Vector2f(0,0)) ){
-            window.draw(nodeCircle);
+        if (edit_mode and (nodeSelect.getPosition() != sf::Vector2f(0,0)) ){
+            window.draw(nodeSelect);
         }
 
         // Display the window
