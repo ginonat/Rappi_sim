@@ -35,8 +35,8 @@ int main()
     shopCircle.setFillColor(sf::Color::Yellow);
 
     // Create nodes
-    const int rows = 10;
-    const int cols = 10;
+    const int rows = 20;
+    const int cols = 20;
     std::vector<Node> nodes(rows * cols);
     nodes= createNodes(rows, cols, window);
 

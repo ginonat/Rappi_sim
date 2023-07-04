@@ -1,5 +1,5 @@
-#include "../include/buildCity.h"
 #include "../include/struct.h"
+#include "../include/buildCity.h"
 
 // Create nodes
 std::vector<Node> createNodes(int rows, int cols, sf::RenderWindow& window) {
@@ -9,7 +9,7 @@ std::vector<Node> createNodes(int rows, int cols, sf::RenderWindow& window) {
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
             Node& node = nodes[i * cols + j];
-            node.position = sf::Vector2f(j * nodeSpacing_x + (rand()%100) * nodeSpacing_x/300, i * nodeSpacing_y+ (rand()%100) * nodeSpacing_y/300);
+            node.position = sf::Vector2f(j * nodeSpacing_x + (rand()%20) * nodeSpacing_x/300, i * nodeSpacing_y+ (rand()%20) * nodeSpacing_y/300);
             if (i > 0) {
                 node.neighbors.push_back(&nodes[(i - 1) * cols + j]);
             }
