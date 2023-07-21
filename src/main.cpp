@@ -3,12 +3,44 @@
 #include <SFML/Graphics.hpp>
 #include <SFML/System/Vector2.hpp>
 #include <cmath> 
+#include <fstream>
 
 #include "../include/draw.h"
 #include "../include/struct.h"
 #include "../include/buildCity.h"
 
+std::vector<Node> loadNodes(const std::string& filename) {
+    std::vector<Node> nodes;
+    std::ifstream file(filename);
+    if (file.is_open()) {
+        float x, y;
+        bool has_shop;
+        while (file >> x >> y >> has_shop) {
+            Node node;
+            node.position = sf::Vector2f(x, y);
+            node.has_shop = has_shop;
+            nodes.push_back(node);
+        }
+        file.close();
+        std::cout << "Nodes loaded from " << filename << std::endl;
+    } else {
+        std::cout << "Unable to open file " << filename << std::endl;
+    }
+    return nodes;
+}
 
+void saveNodes(const std::vector<Node>& nodes, const std::string& filename) {
+    std::ofstream file(filename);
+    if (file.is_open()) {
+        for (const auto& node : nodes) {
+            file << node.position.x << " " << node.position.y << " " << node.has_shop << "\n";
+        }
+        file.close();
+        std::cout << "Nodes saved to " << filename << std::endl;
+    } else {
+        std::cout << "Unable to open file " << filename << std::endl;
+    }
+}
 
 int main()
 {
@@ -37,8 +69,10 @@ int main()
     // Create nodes
     const int rows = 20;
     const int cols = 20;
-    std::vector<Node> nodes(rows * cols);
-    nodes= createNodes(rows, cols, window);
+    std::vector<Node> nodes = loadNodes("city.map"); // Load nodes from file
+    if (nodes.empty()) {
+        nodes = createNodes(rows, cols, window);
+    }
 
     // Create a circle shape for the nodes
     float nodeRadius = 2.0f;
@@ -95,6 +129,8 @@ int main()
                     } else {
                         window.setTitle("Unpaused: Edit mode off");
                     }
+                } else if (edit_mode && event.key.code == sf::Keyboard::L) {
+                    nodes = loadNodes("city.map"); // Load nodes from file
                 }
             }
             if (edit_mode) { 
@@ -113,7 +149,7 @@ int main()
                     // Highlight the selected node by turning red
                     nodeSelect.setFillColor(sf::Color::Red);
                     nodeSelect.setPosition(closestNode->position.x - 5.0f, closestNode->position.y - 5.0f);
-                    }
+                }
                 if (sf::Keyboard::isKeyPressed(sf::Keyboard::S) and closestNode!=nullptr) {
                     closestNode->has_shop = true;
                 }
@@ -170,6 +206,9 @@ int main()
 
         if (edit_mode and (nodeSelect.getPosition() != sf::Vector2f(0,0)) ){
             window.draw(nodeSelect);
+        }
+        if (edit_mode and (sf::Keyboard::isKeyPressed(sf::Keyboard::S))) {
+            saveNodes(nodes, "new_city.map");
         }
 
         // Display the window
