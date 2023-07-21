@@ -69,7 +69,7 @@ int main()
     // Create nodes
     const int rows = 20;
     const int cols = 20;
-    std::vector<Node> nodes = loadNodes("city.map"); // Load nodes from file
+    std::vector<Node> nodes = loadNodes("maps/city.map"); // Load nodes from file
     if (nodes.empty()) {
         nodes = createNodes(rows, cols, window);
     }
