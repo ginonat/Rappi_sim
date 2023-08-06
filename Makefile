@@ -1,5 +1,5 @@
 CXX = g++
-CXXFLAGS = -Wall -Werror -pedantic -std=c++11
+CXXFLAGS = -Wall -Werror -pedantic -std=c++14
 LDFLAGS = -lsfml-graphics -lsfml-window -lsfml-system
 
 SRCDIR = src

@@ -9,38 +9,6 @@
 #include "../include/struct.h"
 #include "../include/buildCity.h"
 
-std::vector<Node> loadNodes(const std::string& filename) {
-    std::vector<Node> nodes;
-    std::ifstream file(filename);
-    if (file.is_open()) {
-        float x, y;
-        bool has_shop;
-        while (file >> x >> y >> has_shop) {
-            Node node;
-            node.position = sf::Vector2f(x, y);
-            node.has_shop = has_shop;
-            nodes.push_back(node);
-        }
-        file.close();
-        std::cout << "Nodes loaded from " << filename << std::endl;
-    } else {
-        std::cout << "Unable to open file " << filename << std::endl;
-    }
-    return nodes;
-}
-
-void saveNodes(const std::vector<Node>& nodes, const std::string& filename) {
-    std::ofstream file(filename);
-    if (file.is_open()) {
-        for (const auto& node : nodes) {
-            file << node.position.x << " " << node.position.y << " " << node.has_shop << "\n";
-        }
-        file.close();
-        std::cout << "Nodes saved to " << filename << std::endl;
-    } else {
-        std::cout << "Unable to open file " << filename << std::endl;
-    }
-}
 
 int main()
 {
@@ -67,12 +35,10 @@ int main()
     shopCircle.setFillColor(sf::Color::Yellow);
 
     // Create nodes
-    const int rows = 20;
-    const int cols = 20;
-    std::vector<Node> nodes = loadNodes("maps/city.map"); // Load nodes from file
-    if (nodes.empty()) {
-        nodes = createNodes(rows, cols, window);
-    }
+    //const int rows = 20;
+    //const int cols = 20;
+    //std::vector<Node> nodes = createNodes(rows, cols, window);
+    std::vector<Node> nodes = loadNodes("maps/new_city.map"); // Load nodes from file
 
     // Create a circle shape for the nodes
     float nodeRadius = 2.0f;

@@ -26,7 +26,9 @@ struct Runner {
 
 // Node struct
 struct Node {
+    int id;
     sf::Vector2f position;
     std::vector<Node*> neighbors;
+    std::vector<int> neighborsID;
     bool has_shop = false;
 };

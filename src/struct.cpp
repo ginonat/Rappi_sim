@@ -1,4 +1,5 @@
 #include "../include/struct.h"
+#include <iostream>
 
 
 // runners struct
