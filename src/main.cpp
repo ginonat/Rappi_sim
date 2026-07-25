@@ -35,6 +35,10 @@ int main()
     float delta;
     float zoom=1;
 
+    // middle-mouse-button drag panning
+    bool panning = false;
+    sf::Vector2f panAnchorWorld;
+
 
     // edit mode set so false 
     bool edit_mode = false;
@@ -95,15 +99,27 @@ int main()
                 uiView = view;
                 window.setView(view);
             } else if (event.type == sf::Event::MouseWheelMoved) {
-                sf::Vector2f mousePosition(sf::Mouse::getPosition(window));
-                sf::Vector2f center(view.getCenter());
-                delta = event.mouseWheel.delta;
+                // Zoom around the point under the cursor: capture its world position,
+                // resize the view, then shift the view so that same world point is
+                // back under the cursor (instead of jumping the center to the cursor).
+                sf::Vector2f mouseWorldBefore = window.mapPixelToCoords(sf::Mouse::getPosition(window), view);
+                delta = static_cast<float>(event.mouseWheel.delta);
                 zoomFactor = std::pow(1.1f, delta);
                 zoom = zoom * zoomFactor;
                 view.setSize(window.getDefaultView().getSize() / zoom);
-                view.setCenter((mousePosition));
-                std::cout << "setCenter x: " << window.getDefaultView().getSize().x << "zoom" << zoomFactor << window.getDefaultView().getSize().x / zoomFactor << std::endl;
                 window.setView(view);
+                sf::Vector2f mouseWorldAfter = window.mapPixelToCoords(sf::Mouse::getPosition(window), view);
+                view.move(mouseWorldBefore - mouseWorldAfter);
+                window.setView(view);
+            } else if (event.type == sf::Event::MouseButtonPressed) {
+                if (event.mouseButton.button == sf::Mouse::Middle) {
+                    panning = true;
+                    panAnchorWorld = window.mapPixelToCoords(sf::Mouse::getPosition(window), view);
+                }
+            } else if (event.type == sf::Event::MouseButtonReleased) {
+                if (event.mouseButton.button == sf::Mouse::Middle) {
+                    panning = false;
+                }
             }
 
            // check for edit mode in every event keyPressed
@@ -150,7 +166,16 @@ int main()
                 }
             }
         }
-        if (!edit_mode) { 
+
+        // Re-anchor the view every frame while middle-mouse dragging, so the world
+        // point grabbed on press stays under the cursor as it moves.
+        if (panning) {
+            sf::Vector2f currentWorld = window.mapPixelToCoords(sf::Mouse::getPosition(window), view);
+            view.move(panAnchorWorld - currentWorld);
+            window.setView(view);
+        }
+
+        if (!edit_mode) {
             // Check if the event is a keyPressed
             for (auto& runner : runners) {
                 // Check if the runner has reached its target node
