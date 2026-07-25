@@ -20,6 +20,16 @@ int main()
     sf::View view(window.getDefaultView());
     window.setView(view);
 
+    // fixed-to-screen view for the sidebar HUD, unaffected by zoom/pan
+    sf::View uiView(window.getDefaultView());
+    const float sidebarWidth = 200.f;
+
+    sf::Font font;
+    bool fontLoaded = font.loadFromFile("assets/arial.ttf");
+    if (!fontLoaded) {
+        std::cerr << "Warning: failed to load assets/arial.ttf, sidebar text will not render" << std::endl;
+    }
+
     // zoom and view movement parameters
     float zoomFactor = std::pow(1.1f, 1);
     float delta;
@@ -81,7 +91,9 @@ int main()
             if (event.type == sf::Event::Closed) {
                 window.close();
             } else if (event.type == sf::Event::Resized) {
-                window.setView(sf::View(sf::FloatRect(0, 0, event.size.width, event.size.height)));
+                view = sf::View(sf::FloatRect(0, 0, event.size.width, event.size.height));
+                uiView = view;
+                window.setView(view);
             } else if (event.type == sf::Event::MouseWheelMoved) {
                 sf::Vector2f mousePosition(sf::Mouse::getPosition(window));
                 sf::Vector2f center(view.getCenter());
@@ -107,8 +119,9 @@ int main()
                     nodes = loadNodes("maps/lion_city.map"); // Load nodes from file
                 }
             }
-            if (edit_mode) { 
-                if (sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
+            bool mouseOverSidebar = sf::Mouse::getPosition(window).x >= static_cast<int>(window.getSize().x - sidebarWidth);
+            if (edit_mode) {
+                if (!mouseOverSidebar && sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
                     sf::Vector2i mousePos = sf::Mouse::getPosition(window);
                     float closestDist = std::numeric_limits<float>::max();
                     for (auto& node : nodes) {
@@ -205,6 +218,21 @@ int main()
             if (edit_mode and (sf::Keyboard::isKeyPressed(sf::Keyboard::G))) {
                 saveNodes(nodes, "new_city.map");
             }
+        }
+
+        // Draw the sidebar HUD, fixed to the screen regardless of the world view's zoom/pan
+        if (fontLoaded) {
+            std::size_t numShops = 0;
+            for (const auto& node : nodes) {
+                if (node.has_shop) {
+                    ++numShops;
+                }
+            }
+            sf::Vector2f sidebarPosition(window.getSize().x - sidebarWidth, 0.f);
+            sf::Vector2f sidebarSize(sidebarWidth, static_cast<float>(window.getSize().y));
+            window.setView(uiView);
+            drawSidebar(window, font, sidebarPosition, sidebarSize, edit_mode, runners.size(), numShops, requests.size());
+            window.setView(view);
         }
 
         // Display the window
