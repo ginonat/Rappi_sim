@@ -1,4 +1,6 @@
+#include <algorithm>
 #include <deque>
+#include <dirent.h>
 #include <iostream>
 #include <limits>
 #include <list>
@@ -11,6 +13,78 @@
 #include "../include/struct.h"
 #include "../include/buildCity.h"
 #include "../include/pathfinding.h"
+
+enum class AppState { StartMenu, Running };
+
+// Every ".map" file directly inside `directory`, sorted for a stable menu order.
+std::vector<std::string> listMapFiles(const std::string& directory) {
+    std::vector<std::string> paths;
+    DIR* dir = opendir(directory.c_str());
+    if (dir != nullptr) {
+        struct dirent* entry;
+        while ((entry = readdir(dir)) != nullptr) {
+            std::string name = entry->d_name;
+            if (name.size() > 4 && name.substr(name.size() - 4) == ".map") {
+                paths.push_back(directory + "/" + name);
+            }
+        }
+        closedir(dir);
+    }
+    std::sort(paths.begin(), paths.end());
+    return paths;
+}
+
+// "maps/lion_city.map" -> "lion_city"
+std::string mapDisplayName(const std::string& path) {
+    std::size_t slash = path.find_last_of('/');
+    std::size_t start = (slash == std::string::npos) ? 0 : slash + 1;
+    std::size_t dot = path.find_last_of('.');
+    std::size_t end = (dot == std::string::npos || dot < start) ? path.size() : dot;
+    return path.substr(start, end - start);
+}
+
+sf::VertexArray buildStreets(const std::vector<Node>& nodes) {
+    sf::VertexArray streets(sf::Lines, 0);
+    for (const auto& node : nodes) {
+        for (const auto& neighbor : node.neighbors) {
+            streets.append(sf::Vertex(node.position, sf::Color::White));
+            streets.append(sf::Vertex(neighbor->position, sf::Color::White));
+        }
+    }
+    return streets;
+}
+
+// Loads a city and discards all in-flight simulation state. Necessary, not just tidy:
+// runners/requests hold raw Node*/Runner*/Request* pointers into these containers, and
+// replacing `nodes` invalidates every one of them.
+void loadCityAndResetSimulation(const std::string& path, std::vector<Node>& nodes, sf::VertexArray& streets,
+                                 std::deque<Runner>& runners, std::list<Request>& requests, Node*& closestNode) {
+    nodes = loadNodes(path);
+    streets = buildStreets(nodes);
+    runners.clear();
+    requests.clear();
+    closestNode = nullptr;
+}
+
+sf::FloatRect computeLoadMapButtonBounds(const sf::RenderWindow& window) {
+    float width = 240.f;
+    float height = 44.f;
+    float centerX = window.getSize().x / 2.f;
+    float y = window.getSize().y / 2.f - 60.f;
+    return sf::FloatRect(centerX - width / 2.f, y, width, height);
+}
+
+std::vector<sf::FloatRect> computeMapButtonBounds(const sf::RenderWindow& window, std::size_t count) {
+    std::vector<sf::FloatRect> bounds;
+    sf::FloatRect loadButton = computeLoadMapButtonBounds(window);
+    float height = 38.f;
+    float y = loadButton.top + loadButton.height + 16.f;
+    for (std::size_t i = 0; i < count; ++i) {
+        bounds.push_back(sf::FloatRect(loadButton.left, y, loadButton.width, height));
+        y += height + 8.f;
+    }
+    return bounds;
+}
 
 // Nearest runner (by live position) that isn't already fulfilling a request.
 Runner* findNearestIdleRunner(std::deque<Runner>& runners, const sf::Vector2f& position) {
@@ -62,7 +136,7 @@ float sliderValueFromMouseX(int mouseX, float sliderLeft, float sliderRight, flo
 int main()
 {
     // Create a window with a black background
-    sf::RenderWindow window(sf::VideoMode(640, 480), "My Window", sf::Style::Titlebar | sf::Style::Close | sf::Style::Resize);
+    sf::RenderWindow window(sf::VideoMode(640, 480), "Rappi_sim", sf::Style::Titlebar | sf::Style::Close | sf::Style::Resize);
     window.clear(sf::Color::Black);
 
     // create a view object
@@ -118,7 +192,8 @@ int main()
     //const int rows = 20;
     //const int cols = 20;
     //std::vector<Node> nodes = createNodes(rows, cols, window);
-    std::vector<Node> nodes = loadNodes("maps/lion_city.map"); // Load nodes from file
+    // Left empty until a map is chosen from the start menu.
+    std::vector<Node> nodes;
 
     //create a list of `Request` structures. A list, not a vector/deque, because runners hold
     //long-lived pointers into it (Runner::activeRequest) that must keep working even after
@@ -134,26 +209,25 @@ int main()
     sf::CircleShape nodeCircle(nodeRadius);
     nodeCircle.setFillColor(sf::Color::White);
 
-    // Create a vertex array for the streets
-    sf::VertexArray streets(sf::Lines, 0);
-    
-    // Add the streets to the vertex array
-    for (const auto& node : nodes) {
-        for (const auto& neighbor : node.neighbors) {
-            sf::Vertex vertex1(node.position, sf::Color::White);
-            sf::Vertex vertex2(neighbor->position, sf::Color::White);
-            streets.append(vertex1);
-            streets.append(vertex2);
-        }
-    }
-    
-    // Set the outline thickness of the streets
-    streets.setPrimitiveType(sf::Lines);
-    
+    // Streets are derived from nodes; empty until a map is loaded, rebuilt by
+    // loadCityAndResetSimulation whenever one is.
+    sf::VertexArray streets = buildStreets(nodes);
+
     // Create a deque to store the red runners. A deque, not a vector, because requests hold
     // long-lived pointers into it (Request::designatedRunner) that must survive later pushes.
     std::deque<Runner> runners;
 
+    // Start menu / map picker state
+    AppState appState = AppState::StartMenu;
+    std::vector<std::string> availableMaps = listMapFiles("maps");
+    bool showMapList = false;
+    std::string currentMapPath = "maps/lion_city.map"; // what `L` reloads while running
+    if (!fontLoaded) {
+        // Without a font the menu's labels can't render usably - skip straight to a
+        // playable default rather than leaving the app stuck on an unreadable screen.
+        loadCityAndResetSimulation(currentMapPath, nodes, streets, runners, requests, closestNode);
+        appState = AppState::Running;
+    }
 
     // Run the game loop
     while (window.isOpen()) {
@@ -162,7 +236,7 @@ int main()
         // and sidesteps the pixel-vs-world mismatch a raw pixel/world comparison would have.
         bool mouseOverSidebar = sf::Mouse::getPosition(window).x >= static_cast<int>(window.getSize().x - sidebarWidth);
         Node* hoverNode = nullptr;
-        if (edit_mode && !mouseOverSidebar) {
+        if (appState == AppState::Running && edit_mode && !mouseOverSidebar) {
             sf::Vector2i mousePixel = sf::Mouse::getPosition(window);
             float closestDist = std::numeric_limits<float>::max();
             for (auto& node : nodes) {
@@ -190,6 +264,25 @@ int main()
                 uiView = view;
                 zoom = 1.f;
                 window.setView(view);
+            } else if (appState == AppState::StartMenu) {
+                if (event.type == sf::Event::MouseButtonPressed && event.mouseButton.button == sf::Mouse::Left) {
+                    sf::Vector2i mousePixel = sf::Mouse::getPosition(window);
+                    sf::Vector2f mouse(static_cast<float>(mousePixel.x), static_cast<float>(mousePixel.y));
+                    sf::FloatRect loadMapButton = computeLoadMapButtonBounds(window);
+                    if (loadMapButton.contains(mouse)) {
+                        showMapList = !showMapList;
+                    } else if (showMapList) {
+                        std::vector<sf::FloatRect> mapButtons = computeMapButtonBounds(window, availableMaps.size());
+                        for (std::size_t i = 0; i < mapButtons.size(); ++i) {
+                            if (mapButtons[i].contains(mouse)) {
+                                currentMapPath = availableMaps[i];
+                                loadCityAndResetSimulation(currentMapPath, nodes, streets, runners, requests, closestNode);
+                                appState = AppState::Running;
+                                showMapList = false;
+                            }
+                        }
+                    }
+                }
             } else if (event.type == sf::Event::MouseWheelMoved) {
                 // Zoom around the point under the cursor: capture its world position,
                 // resize the view, then shift the view so that same world point is
@@ -232,32 +325,49 @@ int main()
                 }
             }
 
-           // check for edit mode in every event keyPressed
-            if (event.type == sf::Event::KeyPressed) {
-                if (event.key.code == sf::Keyboard::E) {
-                    edit_mode = !edit_mode;
-                    if (edit_mode) {
-                        window.setTitle("Paused: Edit mode on");
-                    } else {
-                        window.setTitle("Unpaused: Edit mode off");
-                    }
-                } else if (edit_mode && event.key.code == sf::Keyboard::L) {
-                    nodes = loadNodes("maps/lion_city.map"); // Load nodes from file
-                }
-            }
-            if (edit_mode) {
-                if (sf::Keyboard::isKeyPressed(sf::Keyboard::S) and closestNode!=nullptr) {
-                    closestNode->has_shop = true;
-                }
-            } else {
+            if (appState == AppState::Running) {
+                // check for edit mode in every event keyPressed
                 if (event.type == sf::Event::KeyPressed) {
-                    // Add new runner
-                    if (event.key.code >= sf::Keyboard::Add) {
-                        Node* start_node = &nodes[rand() % nodes.size()];
-                        runners.emplace_back(start_node, sf::Vector2f(10, 10), sf::Color::Blue, 0.03f);
+                    if (event.key.code == sf::Keyboard::E) {
+                        edit_mode = !edit_mode;
+                        if (edit_mode) {
+                            window.setTitle("Paused: Edit mode on");
+                        } else {
+                            window.setTitle("Unpaused: Edit mode off");
+                        }
+                    } else if (edit_mode && event.key.code == sf::Keyboard::L) {
+                        loadCityAndResetSimulation(currentMapPath, nodes, streets, runners, requests, closestNode);
+                    }
+                }
+                if (edit_mode) {
+                    if (sf::Keyboard::isKeyPressed(sf::Keyboard::S) and closestNode!=nullptr) {
+                        closestNode->has_shop = true;
+                    }
+                } else {
+                    if (event.type == sf::Event::KeyPressed) {
+                        // Add new runner
+                        if (event.key.code >= sf::Keyboard::Add) {
+                            Node* start_node = &nodes[rand() % nodes.size()];
+                            runners.emplace_back(start_node, sf::Vector2f(10, 10), sf::Color::Blue, 0.03f);
+                        }
                     }
                 }
             }
+        }
+
+        if (appState != AppState::Running) {
+            window.clear(sf::Color::Black);
+            if (fontLoaded) {
+                sf::FloatRect loadMapButton = computeLoadMapButtonBounds(window);
+                std::vector<sf::FloatRect> mapButtons = computeMapButtonBounds(window, availableMaps.size());
+                std::vector<std::string> mapLabels;
+                for (const auto& path : availableMaps) {
+                    mapLabels.push_back(mapDisplayName(path));
+                }
+                drawStartMenu(window, font, loadMapButton, mapButtons, mapLabels, showMapList, sf::Mouse::getPosition(window));
+            }
+            window.display();
+            continue;
         }
 
         // Re-anchor the view every frame while middle-mouse dragging, so the world

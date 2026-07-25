@@ -9,6 +9,8 @@ picks up the package, and takes the shortest path (Dijkstra) to the destination.
 
 ## Features
 
+- **Start menu** — pick which city to load from a "Load Map" button; every `.map` file in
+  `maps/` shows up automatically.
 - **City graph editor** — click a node to select it, mark it as a shop, save/reload the
   layout, all without leaving the app.
 - **Real routing** — deliveries follow an actual shortest path over the street graph
@@ -32,13 +34,15 @@ make
 
 ## Controls
 
+On launch, click **Load Map** and pick a city to start. In the simulation:
+
 | Key / input             | Effect                                             |
 |--------------------------|-----------------------------------------------------|
 | `E`                      | Toggle edit mode (pauses the simulation)             |
 | Left click (edit mode)   | Select the nearest node                              |
 | `S` (edit mode, node selected) | Mark the selected node as a shop               |
 | `G` (edit mode)          | Save the current city to `new_city.map`              |
-| `L` (edit mode)          | Reload the city from `maps/lion_city.map`             |
+| `L` (edit mode)          | Reload the current city from disk                    |
 | Mouse wheel              | Zoom in/out, centered on the cursor                  |
 | Middle-click drag        | Pan the view                                         |
 | `+`                      | Spawn a new runner at a random node                  |

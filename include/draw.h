@@ -5,6 +5,7 @@
 #include <cmath>
 #include <deque>
 #include <list>
+#include <string>
 #include <vector>
 #include "struct.h"
 
@@ -16,5 +17,8 @@ void drawSidebar(sf::RenderWindow& window, const sf::Font& font, const sf::Vecto
                   bool edit_mode, std::size_t numRunners, std::size_t numShops, std::size_t numRequests);
 void drawSpeedSlider(sf::RenderWindow& window, const sf::Font& font, const sf::Vector2f& position, float width,
                       float minValue, float maxValue, float value);
+void drawStartMenu(sf::RenderWindow& window, const sf::Font& font, const sf::FloatRect& loadMapButton,
+                    const std::vector<sf::FloatRect>& mapButtons, const std::vector<std::string>& mapLabels,
+                    bool showMapList, const sf::Vector2i& mousePixel);
 
 #endif // DRAW_H

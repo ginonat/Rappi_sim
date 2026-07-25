@@ -148,4 +148,58 @@ void drawSpeedSlider(sf::RenderWindow& window, const sf::Font& font, const sf::V
     window.draw(handle);
 }
 
+namespace {
+void drawButton(sf::RenderWindow& window, const sf::Font& font, const sf::FloatRect& bounds,
+                 const std::string& label, bool hovered) {
+    sf::RectangleShape box(sf::Vector2f(bounds.width, bounds.height));
+    box.setPosition(bounds.left, bounds.top);
+    box.setFillColor(hovered ? sf::Color(60, 60, 60) : sf::Color(35, 35, 35));
+    box.setOutlineColor(sf::Color(120, 120, 120));
+    box.setOutlineThickness(1.f);
+    window.draw(box);
+
+    sf::Text text(label, font, 16);
+    text.setFillColor(sf::Color::White);
+    sf::FloatRect textBounds = text.getLocalBounds();
+    text.setOrigin(textBounds.left + textBounds.width / 2.f, textBounds.top + textBounds.height / 2.f);
+    text.setPosition(bounds.left + bounds.width / 2.f, bounds.top + bounds.height / 2.f);
+    window.draw(text);
+}
+}
+
+void drawStartMenu(sf::RenderWindow& window, const sf::Font& font, const sf::FloatRect& loadMapButton,
+                    const std::vector<sf::FloatRect>& mapButtons, const std::vector<std::string>& mapLabels,
+                    bool showMapList, const sf::Vector2i& mousePixel) {
+    sf::Vector2f mouse(static_cast<float>(mousePixel.x), static_cast<float>(mousePixel.y));
+
+    sf::Text title("Rappi_sim", font, 40);
+    sf::FloatRect titleBounds = title.getLocalBounds();
+    title.setOrigin(titleBounds.left + titleBounds.width / 2.f, titleBounds.top + titleBounds.height / 2.f);
+    title.setPosition(window.getSize().x / 2.f, loadMapButton.top - 80.f);
+    title.setFillColor(sf::Color::White);
+    window.draw(title);
+
+    sf::Text subtitle("a delivery-courier simulation", font, 14);
+    sf::FloatRect subtitleBounds = subtitle.getLocalBounds();
+    subtitle.setOrigin(subtitleBounds.left + subtitleBounds.width / 2.f, subtitleBounds.top + subtitleBounds.height / 2.f);
+    subtitle.setPosition(window.getSize().x / 2.f, loadMapButton.top - 40.f);
+    subtitle.setFillColor(sf::Color(160, 160, 160));
+    window.draw(subtitle);
+
+    drawButton(window, font, loadMapButton, "Load Map", loadMapButton.contains(mouse));
+
+    if (showMapList) {
+        if (mapLabels.empty()) {
+            sf::Text empty("No maps found in maps/", font, 14);
+            empty.setFillColor(sf::Color(160, 160, 160));
+            empty.setPosition(loadMapButton.left, loadMapButton.top + loadMapButton.height + 12.f);
+            window.draw(empty);
+        } else {
+            for (std::size_t i = 0; i < mapButtons.size() && i < mapLabels.size(); ++i) {
+                drawButton(window, font, mapButtons[i], mapLabels[i], mapButtons[i].contains(mouse));
+            }
+        }
+    }
+}
+
 
