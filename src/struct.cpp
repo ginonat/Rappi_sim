@@ -12,6 +12,12 @@ Runner::Runner(Node* start_node, sf::Vector2f box_size, sf::Color box_color, flo
 }
 
 void Runner::moveToNextNode() {
+    if (!this->route.empty()) {
+        this->target_node = this->route.front();
+        this->route.erase(this->route.begin());
+        this->running = true;
+        return;
+    }
     if (!this->current_node->neighbors.empty()) {
         std::vector<Node*>::size_type neighborIndex = rand() % this->current_node->neighbors.size();
         this->target_node  = this->current_node->neighbors[neighborIndex];

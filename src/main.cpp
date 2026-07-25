@@ -1,14 +1,56 @@
+#include <deque>
 #include <iostream>
 #include <limits>
 #include <SFML/Graphics.hpp>
 #include <SFML/System/Vector2.hpp>
-#include <cmath> 
+#include <cmath>
 #include <fstream>
 
 #include "../include/draw.h"
 #include "../include/struct.h"
 #include "../include/buildCity.h"
+#include "../include/pathfinding.h"
 
+// Nearest runner (by live position) that isn't already fulfilling a request.
+Runner* findNearestIdleRunner(std::deque<Runner>& runners, const sf::Vector2f& position) {
+    Runner* nearest = nullptr;
+    float bestDist = std::numeric_limits<float>::max();
+    for (auto& runner : runners) {
+        if (runner.activeRequest != nullptr) {
+            continue;
+        }
+        sf::Vector2f diff = runner.box.getPosition() - position;
+        float dist = std::sqrt(diff.x * diff.x + diff.y * diff.y);
+        if (dist < bestDist) {
+            bestDist = dist;
+            nearest = &runner;
+        }
+    }
+    return nearest;
+}
+
+// Points the runner toward `goal`, dropping the node it's effectively standing on (or
+// heading to, if it's mid-step) since it doesn't need to be told to walk to itself.
+void routeRunnerTo(Runner& runner, Node* goal) {
+    Node* effectiveStart = runner.running ? runner.target_node : runner.current_node;
+    std::vector<Node*> path = findPath(effectiveStart, goal);
+    if (!path.empty()) {
+        path.erase(path.begin());
+    }
+    runner.route = path;
+}
+
+void dispatchRunnerToShop(Runner& runner, Request& request) {
+    runner.activeRequest = &request;
+    request.designatedRunner = &runner;
+    runner.hasPackage = false;
+    routeRunnerTo(runner, request.holder);
+}
+
+void dispatchRunnerToDestination(Runner& runner) {
+    runner.hasPackage = true;
+    routeRunnerTo(runner, runner.activeRequest->destination);
+}
 
 int main()
 {
@@ -62,8 +104,9 @@ int main()
     //std::vector<Node> nodes = createNodes(rows, cols, window);
     std::vector<Node> nodes = loadNodes("maps/lion_city.map"); // Load nodes from file
 
-    //create a vector of `Request` structures 
-    std::vector<Request> requests;
+    //create a deque of `Request` structures. A deque, not a vector, because runners hold
+    //long-lived pointers into it (Runner::activeRequest) that must survive later pushes.
+    std::deque<Request> requests;
     float requestProbability = 0.0001;  // Set the probability of a shop generating a delivery request
 
     // Create shape for packages
@@ -91,8 +134,9 @@ int main()
     // Set the outline thickness of the streets
     streets.setPrimitiveType(sf::Lines);
     
-    // Create a vector to store the red runners
-    std::vector<Runner> runners;
+    // Create a deque to store the red runners. A deque, not a vector, because requests hold
+    // long-lived pointers into it (Request::designatedRunner) that must survive later pushes.
+    std::deque<Runner> runners;
 
 
     // Run the game loop
@@ -201,6 +245,18 @@ int main()
                     runner.current_node = runner.target_node;
                     runner.running = false;
                 }
+                // Arrived with nowhere left to go on this leg: if it's fulfilling a
+                // request, that means either "reached the shop" (pick up, route to the
+                // destination next) or "reached the destination" (deliver, go idle).
+                if (!runner.running && runner.route.empty() && runner.activeRequest != nullptr) {
+                    if (!runner.hasPackage) {
+                        dispatchRunnerToDestination(runner);
+                    } else {
+                        runner.activeRequest->satisfied = true;
+                        runner.activeRequest = nullptr;
+                        runner.hasPackage = false;
+                    }
+                }
                 // If the runner is not currently running, select a new target node
                 if (!runner.running) {
                     runner.moveToNextNode();
@@ -235,12 +291,22 @@ int main()
             for (auto& node : nodes) {
                 if (node.has_shop && (rand() / float(RAND_MAX)) < requestProbability) {
                     Node* destinationNode = &nodes[rand() % nodes.size()];
-                    Runner* designatedRunner = &runners[rand() % runners.size()];
-                    requests.push_back({&node, designatedRunner, destinationNode, false, animationClock.getElapsedTime().asSeconds()});
+                    requests.push_back({&node, nullptr, destinationNode, false, animationClock.getElapsedTime().asSeconds()});
                     // define the package drawable objects
                     sf::RectangleShape package(sf::Vector2f(10, 10)); // (width, height) of the rectangle
                     package.setPosition(node.position);
                     packages.push_back(package);
+                }
+            }
+        }
+
+        // Dispatch the nearest idle runner to any request that doesn't have one yet -
+        // freshly created ones, or ones still waiting because every runner was busy.
+        for (auto& request : requests) {
+            if (!request.satisfied && request.designatedRunner == nullptr) {
+                Runner* nearest = findNearestIdleRunner(runners, request.holder->position);
+                if (nearest != nullptr) {
+                    dispatchRunnerToShop(*nearest, request);
                 }
             }
         }
@@ -273,10 +339,16 @@ int main()
                     ++numShops;
                 }
             }
+            std::size_t numPendingRequests = 0;
+            for (const auto& request : requests) {
+                if (!request.satisfied) {
+                    ++numPendingRequests;
+                }
+            }
             sf::Vector2f sidebarPosition(window.getSize().x - sidebarWidth, 0.f);
             sf::Vector2f sidebarSize(sidebarWidth, static_cast<float>(window.getSize().y));
             window.setView(uiView);
-            drawSidebar(window, font, sidebarPosition, sidebarSize, edit_mode, runners.size(), numShops, requests.size());
+            drawSidebar(window, font, sidebarPosition, sidebarSize, edit_mode, runners.size(), numShops, numPendingRequests);
             window.setView(view);
         }
 

@@ -3,8 +3,9 @@
 #include <SFML/Graphics.hpp>
 #include <vector>
 
-// Forward declaration of Node struct
+// Forward declarations
 struct Node;
+struct Request;
 
 // Shop structure
 struct Shop {
@@ -18,6 +19,10 @@ struct Runner {
     Node* target_node;
     float movement_speed;
     bool running =false;
+
+    std::vector<Node*> route;         // remaining nodes to visit for the current leg
+    Request* activeRequest = nullptr; // request being fulfilled, nullptr when idle
+    bool hasPackage = false;          // false: heading to the shop, true: carrying the package
 
     Runner(Node* start_node, sf::Vector2f box_size = sf::Vector2f(10, 10), sf::Color box_color = sf::Color::Red, float movement_speed = 1.0f);
 

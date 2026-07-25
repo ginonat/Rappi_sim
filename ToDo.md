@@ -1,9 +1,8 @@
 # ToDo
 
-- Runners don't yet path toward a request's destination — `Runner::moveToNextNode` still
-  picks a random neighbor regardless of any assigned `Request`. A designated runner should
-  route toward `Request::destination` instead.
-- Delivered packages are never cleared — `requests`/`packages`/`arrows` only grow; once a
-  runner reaches a request's destination, the request should be marked `satisfied` and its
-  package/arrow removed.
+- Satisfied requests are never pruned — `requests`/`packages` only grow over a long session
+  (they're just skipped when rendering/counting once `satisfied` is true). Since runners hold
+  a raw `Request*` into the `requests` deque, pruning needs to either null out/clear those
+  pointers first or switch to something safer than raw pointers (e.g. an index or shared
+  ownership) before elements can be erased.
 - `saveNodes` writes to the working directory root (`new_city.map`) instead of `maps/`.

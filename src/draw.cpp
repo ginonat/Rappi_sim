@@ -23,7 +23,7 @@ sf::Vector2f quadraticBezier(sf::Vector2f p0, sf::Vector2f p1, sf::Vector2f p2, 
 }
 }
 
-void drawRequests(sf::RenderWindow& window, const std::vector<Request>& requests, std::vector<sf::RectangleShape>& packages, float time) {
+void drawRequests(sf::RenderWindow& window, const std::deque<Request>& requests, std::vector<sf::RectangleShape>& packages, float time) {
     for (auto& package : packages) {
         window.draw(package);
     }
@@ -37,7 +37,11 @@ void drawRequests(sf::RenderWindow& window, const std::vector<Request>& requests
         if (request.satisfied) {
             continue;
         }
-        sf::Vector2f p0 = request.holder->position;
+
+        // Once a runner has picked up the package, the path is drawn live from the
+        // runner's current position instead of the shop's fixed one, and switches to blue.
+        bool inTransit = request.designatedRunner != nullptr && request.designatedRunner->hasPackage;
+        sf::Vector2f p0 = inTransit ? request.designatedRunner->box.getPosition() : request.holder->position;
         sf::Vector2f p2 = request.destination->position;
         sf::Vector2f mid = (p0 + p2) / 2.f;
         sf::Vector2f dir = p2 - p0;
@@ -48,20 +52,24 @@ void drawRequests(sf::RenderWindow& window, const std::vector<Request>& requests
         }
         sf::Vector2f p1 = mid + perp * (curvature * distance);
 
+        sf::Color dimColor = inTransit ? sf::Color(90, 170, 255, 90) : sf::Color(255, 255, 255, 70);
+
         // Dim dotted curve showing the full path
         for (int d = 0; d <= dotCount; ++d) {
             float t = static_cast<float>(d) / dotCount;
             sf::Vector2f pos = quadraticBezier(p0, p1, p2, t);
             sf::CircleShape dot(1.5f);
-            dot.setFillColor(sf::Color(255, 255, 255, 70));
+            dot.setFillColor(dimColor);
             dot.setPosition(pos - sf::Vector2f(1.5f, 1.5f));
             window.draw(dot);
         }
 
-        // One brighter dot per request, flowing from the shop towards the destination at a
-        // constant real speed (time since the request was placed, not a path-length fraction,
-        // so short and long routes move at the same pace instead of long ones looking faster).
-        if (distance > 0.f) {
+        // One brighter dot per pending (not yet picked up) request, flowing from the shop
+        // towards the destination at a constant real speed (time since the request was
+        // placed, not a path-length fraction, so short and long routes move at the same
+        // pace instead of long ones looking faster). Once a runner is carrying the package,
+        // the runner itself (drawn by drawRunners) is the moving marker, so no separate dot.
+        if (!inTransit && distance > 0.f) {
             float elapsed = time - request.spawnTime;
             float t = std::fmod(elapsed * flowSpeed / distance, 1.f);
             sf::Vector2f pos = quadraticBezier(p0, p1, p2, t);
@@ -73,7 +81,7 @@ void drawRequests(sf::RenderWindow& window, const std::vector<Request>& requests
     }
 }
 
-void drawRunners(sf::RenderWindow& window, std::vector<Runner>& runners) {
+void drawRunners(sf::RenderWindow& window, std::deque<Runner>& runners) {
     for (auto& runner : runners) {
         // Draw the runner
         runner.box.setPosition(runner.box.getPosition() - sf::Vector2f(runner.box.getSize().x/2, runner.box.getSize().y/2));
