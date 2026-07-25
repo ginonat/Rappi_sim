@@ -52,6 +52,8 @@ struct Request
     Node* destination;
     bool satisfied;
     float spawnTime;
+    float itemCost = 0.f;     // random, bell-curve-distributed cost of the good itself
+    float logisticsFee = 0.f; // rate * distance actually travelled, accumulated leg by leg
 };
 
 // Node struct

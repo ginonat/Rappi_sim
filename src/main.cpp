@@ -1,10 +1,13 @@
 #include <algorithm>
 #include <deque>
 #include <dirent.h>
+#include <iomanip>
 #include <iostream>
 #include <iterator>
 #include <limits>
 #include <list>
+#include <random>
+#include <sstream>
 #include <SFML/Graphics.hpp>
 #include <SFML/System/Vector2.hpp>
 #include <cmath>
@@ -145,6 +148,47 @@ std::vector<sf::FloatRect> computeMapButtonBounds(const sf::RenderWindow& window
     return bounds;
 }
 
+// Settings/Stats buttons live in the sidebar, stacked where the old always-visible speed
+// slider used to be (sliderOffsetY) - that slot is free now that the speed dial moved
+// into the settings panel.
+sf::FloatRect computeSettingsButtonBounds(const sf::RenderWindow& window, float sidebarWidth, float sliderMargin, float sliderOffsetY) {
+    float left = window.getSize().x - sidebarWidth + sliderMargin;
+    float width = sidebarWidth - 2.f * sliderMargin;
+    return sf::FloatRect(left, sliderOffsetY, width, 28.f);
+}
+
+sf::FloatRect computeStatsButtonBounds(const sf::RenderWindow& window, float sidebarWidth, float sliderMargin, float sliderOffsetY) {
+    float left = window.getSize().x - sidebarWidth + sliderMargin;
+    float width = sidebarWidth - 2.f * sliderMargin;
+    return sf::FloatRect(left, sliderOffsetY + 36.f, width, 28.f);
+}
+
+// Centered modal panels, sized to fit their contents (5 sliders, or 2 charts + totals).
+sf::FloatRect computeSettingsPanelBounds(const sf::RenderWindow& window, std::size_t sliderCount) {
+    float width = 340.f;
+    float height = 50.f + static_cast<float>(sliderCount) * 50.f;
+    float left = (window.getSize().x - width) / 2.f;
+    float top = (window.getSize().y - height) / 2.f;
+    return sf::FloatRect(left, top, width, height);
+}
+
+sf::FloatRect computeStatsPanelBounds(const sf::RenderWindow& window) {
+    float width = 520.f;
+    float height = 430.f;
+    float left = (window.getSize().x - width) / 2.f;
+    float top = (window.getSize().y - height) / 2.f;
+    return sf::FloatRect(left, top, width, height);
+}
+
+sf::Vector2f settingsSliderPosition(const sf::FloatRect& panelBounds, std::size_t index) {
+    return sf::Vector2f(panelBounds.left + 16.f, panelBounds.top + 44.f + static_cast<float>(index) * 50.f);
+}
+
+sf::FloatRect settingsSliderHitBox(const sf::FloatRect& panelBounds, std::size_t index) {
+    sf::Vector2f pos = settingsSliderPosition(panelBounds, index);
+    return sf::FloatRect(pos.x, pos.y + 12.f, panelBounds.width - 32.f, 20.f);
+}
+
 // Nearest runner (by live position) that isn't already fulfilling a request.
 Runner* findNearestIdleRunner(std::deque<Runner>& runners, const sf::Vector2f& position) {
     Runner* nearest = nullptr;
@@ -165,26 +209,50 @@ Runner* findNearestIdleRunner(std::deque<Runner>& runners, const sf::Vector2f& p
 
 // Points the runner toward `goal`, dropping the node it's effectively standing on (or
 // heading to, if it's mid-step) since it doesn't need to be told to walk to itself.
-void routeRunnerTo(Runner& runner, Node* goal) {
+// Returns the tiered distance of the leg, for the caller to turn into a logistics fee.
+float routeRunnerTo(Runner& runner, Node* goal) {
     Node* effectiveStart = runner.running ? runner.target_node : runner.current_node;
     std::vector<Node*> path = findPath(effectiveStart, goal);
+    float legDistance = pathDistance(path);
     if (!path.empty()) {
         path.erase(path.begin());
     }
     runner.route = path;
+    return legDistance;
 }
 
-void dispatchRunnerToShop(Runner& runner, Request& request) {
+void dispatchRunnerToShop(Runner& runner, Request& request, float feeRatePerDistance) {
     runner.activeRequest = &request;
     request.designatedRunner = &runner;
     runner.hasPackage = false;
-    routeRunnerTo(runner, request.holder);
+    float legDistance = routeRunnerTo(runner, request.holder);
+    request.logisticsFee += feeRatePerDistance * legDistance;
 }
 
-void dispatchRunnerToDestination(Runner& runner) {
+void dispatchRunnerToDestination(Runner& runner, float feeRatePerDistance) {
     runner.hasPackage = true;
-    routeRunnerTo(runner, runner.activeRequest->destination);
+    float legDistance = routeRunnerTo(runner, runner.activeRequest->destination);
+    runner.activeRequest->logisticsFee += feeRatePerDistance * legDistance;
 }
+
+// Box-Muller via <random>'s normal_distribution, floored so a rolled cost is never
+// zero/negative - the request-generation code needs a spendable, positive number.
+float randomBellCurve(float mean, float stddev, float floor = 1.f) {
+    static std::mt19937 rng(std::random_device{}());
+    std::normal_distribution<float> dist(mean, std::max(stddev, 0.01f));
+    return std::max(floor, dist(rng));
+}
+
+// One economy/pace dial in the settings panel: label + live pointer to the value it
+// controls, so dragging the slider writes straight through to the variable in play.
+struct Slider {
+    std::string label;
+    float* value;
+    float minValue;
+    float maxValue;
+    int decimals;
+    std::string suffix;
+};
 
 float sliderValueFromMouseX(int mouseX, float sliderLeft, float sliderRight, float minValue, float maxValue) {
     float t = (static_cast<float>(mouseX) - sliderLeft) / (sliderRight - sliderLeft);
@@ -254,14 +322,42 @@ int main()
     sf::View uiView(window.getDefaultView());
     const float sidebarWidth = 260.f; // wide enough for the longer editor-control lines
 
-    // runner speed slider: a global multiplier applied on top of each runner's own
-    // movement_speed, so it can be adjusted live without touching already-spawned runners
+    // Sidebar layout constants, shared by the Settings/Stats buttons and (inside the
+    // settings panel) every slider.
     const float sliderMargin = 10.f;
-    const float sliderOffsetY = 560.f; // from the top of the sidebar, clear of the (longer, in edit mode) text
+    const float sliderOffsetY = 600.f; // from the top of the sidebar, clear of the (longer, in edit mode) text
+
+    // Runner movement speed and overall simulation pace are separate dials: runner speed
+    // only scales how fast couriers walk between nodes, while sim speed also scales how
+    // often shops roll a new request - "fast-forwarding" everything at once.
     const float speedMin = 0.2f;
     const float speedMax = 5.f;
-    float speedMultiplier = 1.f;
-    bool draggingSlider = false;
+    float runnerSpeedMultiplier = 1.f;
+    float simSpeedMultiplier = 1.f;
+
+    // Economy: item cost is a random draw from a bell curve (mean/stddev tunable live);
+    // the logistics fee is rate * the tiered distance a runner actually travels serving
+    // the request (pickup leg + delivery leg), accumulated in Request::logisticsFee as
+    // each leg is dispatched.
+    float itemCostMean = 15.f;
+    float itemCostStdDev = 5.f;
+    float feeRatePerDistance = 0.05f;
+    float totalGoodsSpend = 0.f;
+    float totalLogisticsSpend = 0.f;
+
+    int draggingPanelSliderIndex = -1; // index into settingsSliders while dragging one in the panel
+    bool settingsPanelOpen = false;
+    bool statsPanelOpen = false;
+
+    // Every dial in the settings panel, built once - each holds a pointer straight into
+    // the (stable, stack-lifetime) variable above it, so dragging one writes live.
+    std::vector<Slider> settingsSliders = {
+        {"Runner speed", &runnerSpeedMultiplier, speedMin, speedMax, 2, "x"},
+        {"Simulation speed", &simSpeedMultiplier, speedMin, speedMax, 2, "x"},
+        {"Item cost mean", &itemCostMean, 1.f, 100.f, 1, ""},
+        {"Item cost std dev", &itemCostStdDev, 0.f, 30.f, 1, ""},
+        {"Fee per distance", &feeRatePerDistance, 0.f, 0.5f, 3, ""},
+    };
 
     sf::Font font;
     bool fontLoaded = font.loadFromFile("assets/arial.ttf");
@@ -330,6 +426,18 @@ int main()
     float requestProbability = 0.0001;  // Set the probability of a shop generating a delivery request
 
     sf::Clock animationClock;
+
+    // Rolling history for the Stats panel's charts: one sample every statsSampleInterval
+    // seconds of wall-clock time (not scaled by sim speed - the charts track real elapsed
+    // time regardless of how fast the sim itself is running), capped at statsHistoryLimit
+    // samples by dropping the oldest.
+    const float statsSampleInterval = 0.5f;
+    const std::size_t statsHistoryLimit = 240; // 2 minutes of history at 0.5s/sample
+    float lastStatsSampleTime = -1000.f; // forces an immediate first sample
+    std::deque<float> idleHistory;
+    std::deque<float> activeHistory;
+    std::deque<float> goodsSpendHistory;
+    std::deque<float> logisticsSpendHistory;
 
     // Create a circle shape for the nodes
     float nodeRadius = 2.0f;
@@ -429,17 +537,39 @@ int main()
                     panAnchorWorld = window.mapPixelToCoords(sf::Mouse::getPosition(window), view);
                 } else if (event.mouseButton.button == sf::Mouse::Left) {
                     sf::Vector2i mousePixel = sf::Mouse::getPosition(window);
-                    float sliderLeft = window.getSize().x - sidebarWidth + sliderMargin;
-                    float sliderRight = window.getSize().x - sliderMargin;
-                    // The track itself sits 22px below sliderOffsetY (see drawSpeedSlider);
-                    // this hit-box is generous on both sides of it for easy grabbing.
-                    float sliderTop = sliderOffsetY + 12.f;
-                    float sliderBottom = sliderOffsetY + 32.f;
-                    bool onSlider = mousePixel.x >= sliderLeft && mousePixel.x <= sliderRight &&
-                                     mousePixel.y >= sliderTop && mousePixel.y <= sliderBottom;
-                    if (onSlider) {
-                        draggingSlider = true;
-                        speedMultiplier = sliderValueFromMouseX(mousePixel.x, sliderLeft, sliderRight, speedMin, speedMax);
+                    sf::Vector2f mouseF(static_cast<float>(mousePixel.x), static_cast<float>(mousePixel.y));
+                    sf::FloatRect settingsButton = computeSettingsButtonBounds(window, sidebarWidth, sliderMargin, sliderOffsetY);
+                    sf::FloatRect statsButton = computeStatsButtonBounds(window, sidebarWidth, sliderMargin, sliderOffsetY);
+
+                    if (settingsButton.contains(mouseF)) {
+                        settingsPanelOpen = !settingsPanelOpen;
+                        statsPanelOpen = false;
+                    } else if (statsButton.contains(mouseF)) {
+                        statsPanelOpen = !statsPanelOpen;
+                        settingsPanelOpen = false;
+                    } else if (settingsPanelOpen) {
+                        // The panel captures the click entirely: hit a slider to start
+                        // dragging it, otherwise a click outside the panel dismisses it.
+                        sf::FloatRect panelBounds = computeSettingsPanelBounds(window, settingsSliders.size());
+                        bool hitSlider = false;
+                        for (std::size_t i = 0; i < settingsSliders.size(); ++i) {
+                            sf::FloatRect hitBox = settingsSliderHitBox(panelBounds, i);
+                            if (hitBox.contains(mouseF)) {
+                                draggingPanelSliderIndex = static_cast<int>(i);
+                                Slider& s = settingsSliders[i];
+                                *s.value = sliderValueFromMouseX(mousePixel.x, hitBox.left, hitBox.left + hitBox.width, s.minValue, s.maxValue);
+                                hitSlider = true;
+                                break;
+                            }
+                        }
+                        if (!hitSlider && !panelBounds.contains(mouseF)) {
+                            settingsPanelOpen = false;
+                        }
+                    } else if (statsPanelOpen) {
+                        sf::FloatRect panelBounds = computeStatsPanelBounds(window);
+                        if (!panelBounds.contains(mouseF)) {
+                            statsPanelOpen = false;
+                        }
                     } else if (edit_mode && !mouseOverSidebar) {
                         mouseDownPixel = mousePixel;
                         bool shiftHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::LShift) ||
@@ -476,7 +606,7 @@ int main()
                 if (event.mouseButton.button == sf::Mouse::Middle) {
                     panning = false;
                 } else if (event.mouseButton.button == sf::Mouse::Left) {
-                    draggingSlider = false;
+                    draggingPanelSliderIndex = -1;
                     draggingSelection = false;
                     dragAnchor = nullptr;
 
@@ -635,10 +765,11 @@ int main()
             window.setView(view);
         }
 
-        if (draggingSlider) {
-            float sliderLeft = window.getSize().x - sidebarWidth + sliderMargin;
-            float sliderRight = window.getSize().x - sliderMargin;
-            speedMultiplier = sliderValueFromMouseX(sf::Mouse::getPosition(window).x, sliderLeft, sliderRight, speedMin, speedMax);
+        if (draggingPanelSliderIndex >= 0 && static_cast<std::size_t>(draggingPanelSliderIndex) < settingsSliders.size()) {
+            sf::FloatRect panelBounds = computeSettingsPanelBounds(window, settingsSliders.size());
+            sf::FloatRect hitBox = settingsSliderHitBox(panelBounds, static_cast<std::size_t>(draggingPanelSliderIndex));
+            Slider& s = settingsSliders[static_cast<std::size_t>(draggingPanelSliderIndex)];
+            *s.value = sliderValueFromMouseX(sf::Mouse::getPosition(window).x, hitBox.left, hitBox.left + hitBox.width, s.minValue, s.maxValue);
         }
 
         if (draggingSelection && dragAnchor != nullptr) {
@@ -666,8 +797,9 @@ int main()
                 // destination next) or "reached the destination" (deliver, go idle).
                 if (!runner.running && runner.route.empty() && runner.activeRequest != nullptr) {
                     if (!runner.hasPackage) {
-                        dispatchRunnerToDestination(runner);
+                        dispatchRunnerToDestination(runner, feeRatePerDistance);
                     } else {
+                        totalLogisticsSpend += runner.activeRequest->logisticsFee;
                         runner.activeRequest->satisfied = true;
                         runner.activeRequest = nullptr;
                         runner.hasPackage = false;
@@ -693,7 +825,7 @@ int main()
             sf::Vector2f distance_to_target = runner.target_node->position - runner.box.getPosition();
             float distance = std::sqrt(distance_to_target.x * distance_to_target.x + distance_to_target.y * distance_to_target.y);
             if (distance > 0) {
-                float step = runner.movement_speed * speedMultiplier / edgeTierMultiplier(runner.currentEdgeTier);
+                float step = runner.movement_speed * runnerSpeedMultiplier * simSpeedMultiplier / edgeTierMultiplier(runner.currentEdgeTier);
                 sf::Vector2f direction = distance_to_target / distance;
                 sf::Vector2f velocity = direction * step;
                 sf::Vector2f new_position = runner.box.getPosition() + velocity;
@@ -710,10 +842,13 @@ int main()
 
         //generating a delivery request
         if (!runners.empty()) {
+            float spawnProbability = std::min(1.f, requestProbability * simSpeedMultiplier);
             for (auto& node : nodes) {
-                if (node.has_shop && (rand() / float(RAND_MAX)) < requestProbability) {
+                if (node.has_shop && (rand() / float(RAND_MAX)) < spawnProbability) {
                     Node* destinationNode = randomNode(nodes);
-                    requests.push_back({&node, nullptr, destinationNode, false, animationClock.getElapsedTime().asSeconds()});
+                    float itemCost = randomBellCurve(itemCostMean, itemCostStdDev);
+                    totalGoodsSpend += itemCost;
+                    requests.push_back({&node, nullptr, destinationNode, false, animationClock.getElapsedTime().asSeconds(), itemCost, 0.f});
                 }
             }
         }
@@ -724,8 +859,34 @@ int main()
             if (!request.satisfied && request.designatedRunner == nullptr) {
                 Runner* nearest = findNearestIdleRunner(runners, request.holder->position);
                 if (nearest != nullptr) {
-                    dispatchRunnerToShop(*nearest, request);
+                    dispatchRunnerToShop(*nearest, request, feeRatePerDistance);
                 }
+            }
+        }
+
+        // Sample runner utilization and cumulative spend for the Stats panel's charts,
+        // once every statsSampleInterval seconds of wall-clock time.
+        float nowSeconds = animationClock.getElapsedTime().asSeconds();
+        if (nowSeconds - lastStatsSampleTime >= statsSampleInterval) {
+            lastStatsSampleTime = nowSeconds;
+            float idleCount = 0.f;
+            float activeCount = 0.f;
+            for (const auto& runner : runners) {
+                if (runner.activeRequest == nullptr) {
+                    idleCount += 1.f;
+                } else {
+                    activeCount += 1.f;
+                }
+            }
+            idleHistory.push_back(idleCount);
+            activeHistory.push_back(activeCount);
+            goodsSpendHistory.push_back(totalGoodsSpend);
+            logisticsSpendHistory.push_back(totalLogisticsSpend);
+            if (idleHistory.size() > statsHistoryLimit) {
+                idleHistory.pop_front();
+                activeHistory.pop_front();
+                goodsSpendHistory.pop_front();
+                logisticsSpendHistory.pop_front();
             }
         }
 
@@ -765,8 +926,48 @@ int main()
             window.setView(uiView);
             drawSidebar(window, font, sidebarPosition, sidebarSize, edit_mode, runners.size(), numShops, requests.size(),
                         edgeTierLabel(currentTier), gridSnapEnabled, gridRows, gridCols, gridToolArmed);
-            drawSpeedSlider(window, font, sf::Vector2f(sidebarPosition.x + sliderMargin, sidebarPosition.y + sliderOffsetY),
-                             sidebarWidth - 2.f * sliderMargin, speedMin, speedMax, speedMultiplier);
+
+            sf::Vector2f mouseScreen(sf::Mouse::getPosition(window));
+            sf::FloatRect settingsButton = computeSettingsButtonBounds(window, sidebarWidth, sliderMargin, sliderOffsetY);
+            sf::FloatRect statsButton = computeStatsButtonBounds(window, sidebarWidth, sliderMargin, sliderOffsetY);
+            drawButton(window, font, settingsButton, "Settings", settingsButton.contains(mouseScreen));
+            drawButton(window, font, statsButton, "Stats", statsButton.contains(mouseScreen));
+
+            if (settingsPanelOpen) {
+                sf::FloatRect panelBounds = computeSettingsPanelBounds(window, settingsSliders.size());
+                drawPanelBackground(window, font, panelBounds, "Settings");
+                for (std::size_t i = 0; i < settingsSliders.size(); ++i) {
+                    const Slider& s = settingsSliders[i];
+                    drawSlider(window, font, settingsSliderPosition(panelBounds, i), panelBounds.width - 32.f,
+                               s.label, s.minValue, s.maxValue, *s.value, s.decimals, s.suffix);
+                }
+            }
+
+            if (statsPanelOpen) {
+                sf::FloatRect panelBounds = computeStatsPanelBounds(window);
+                drawPanelBackground(window, font, panelBounds, "Stats");
+
+                std::ostringstream totals;
+                totals << "Total goods spend: $" << std::fixed << std::setprecision(2) << totalGoodsSpend << "\n"
+                       << "Total logistics spend: $" << std::fixed << std::setprecision(2) << totalLogisticsSpend << "\n"
+                       << "Combined: $" << std::fixed << std::setprecision(2) << (totalGoodsSpend + totalLogisticsSpend);
+                sf::Text totalsText(totals.str(), font, 13);
+                totalsText.setFillColor(sf::Color(220, 220, 220));
+                totalsText.setPosition(panelBounds.left + 14.f, panelBounds.top + 34.f);
+                window.draw(totalsText);
+
+                std::vector<float> idleVec(idleHistory.begin(), idleHistory.end());
+                std::vector<float> activeVec(activeHistory.begin(), activeHistory.end());
+                sf::FloatRect utilizationChart(panelBounds.left + 14.f, panelBounds.top + 96.f, panelBounds.width - 28.f, 150.f);
+                drawLineChart(window, font, utilizationChart, "Runner utilization over time",
+                              {idleVec, activeVec}, {sf::Color::Green, sf::Color::Blue}, {"Idle", "Active"});
+
+                std::vector<float> goodsVec(goodsSpendHistory.begin(), goodsSpendHistory.end());
+                std::vector<float> logisticsVec(logisticsSpendHistory.begin(), logisticsSpendHistory.end());
+                sf::FloatRect spendChart(panelBounds.left + 14.f, panelBounds.top + 256.f, panelBounds.width - 28.f, 150.f);
+                drawLineChart(window, font, spendChart, "Cumulative spend over time ($)",
+                              {goodsVec, logisticsVec}, {sf::Color(255, 215, 0), sf::Color(0, 200, 255)}, {"Goods", "Logistics"});
+            }
             window.setView(view);
         }
 

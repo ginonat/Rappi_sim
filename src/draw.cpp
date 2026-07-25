@@ -124,8 +124,9 @@ void drawSidebar(sf::RenderWindow& window, const sf::Font& font, const sf::Vecto
         "C (edit)  arm grid tool, drag to add grid\n"
         "+  spawn runner\n"
         "scroll  zoom\n"
-        "middle drag  pan\n\n"
-        "Stats\n"
+        "middle drag  pan\n"
+        "Settings/Stats buttons  economy + charts\n\n"
+        "Status\n"
         "Mode: " + std::string(edit_mode ? "Edit" : "Running") + "\n"
         "Runners: " + std::to_string(numRunners) + "\n"
         "Shops: " + std::to_string(numShops) + "\n"
@@ -145,11 +146,12 @@ void drawSidebar(sf::RenderWindow& window, const sf::Font& font, const sf::Vecto
     window.draw(text);
 }
 
-void drawSpeedSlider(sf::RenderWindow& window, const sf::Font& font, const sf::Vector2f& position, float width,
-                      float minValue, float maxValue, float value) {
-    std::ostringstream label;
-    label << "Speed: " << std::fixed << std::setprecision(2) << value << "x";
-    sf::Text text(label.str(), font, 14);
+void drawSlider(sf::RenderWindow& window, const sf::Font& font, const sf::Vector2f& position, float width,
+                 const std::string& label, float minValue, float maxValue, float value,
+                 int decimals, const std::string& suffix) {
+    std::ostringstream text_stream;
+    text_stream << label << ": " << std::fixed << std::setprecision(decimals) << value << suffix;
+    sf::Text text(text_stream.str(), font, 14);
     text.setFillColor(sf::Color::White);
     text.setPosition(position);
     window.draw(text);
@@ -179,7 +181,6 @@ void drawPreviewRect(sf::RenderWindow& window, const sf::FloatRect& rect, sf::Co
     window.draw(box);
 }
 
-namespace {
 void drawButton(sf::RenderWindow& window, const sf::Font& font, const sf::FloatRect& bounds,
                  const std::string& label, bool hovered) {
     sf::RectangleShape box(sf::Vector2f(bounds.width, bounds.height));
@@ -196,6 +197,112 @@ void drawButton(sf::RenderWindow& window, const sf::Font& font, const sf::FloatR
     text.setPosition(bounds.left + bounds.width / 2.f, bounds.top + bounds.height / 2.f);
     window.draw(text);
 }
+
+void drawPanelBackground(sf::RenderWindow& window, const sf::Font& font, const sf::FloatRect& bounds, const std::string& title) {
+    sf::RectangleShape box(sf::Vector2f(bounds.width, bounds.height));
+    box.setPosition(bounds.left, bounds.top);
+    box.setFillColor(sf::Color(20, 20, 20, 235));
+    box.setOutlineColor(sf::Color(140, 140, 140));
+    box.setOutlineThickness(1.5f);
+    window.draw(box);
+
+    sf::Text text(title, font, 18);
+    text.setStyle(sf::Text::Bold);
+    text.setFillColor(sf::Color::White);
+    text.setPosition(bounds.left + 14.f, bounds.top + 10.f);
+    window.draw(text);
+}
+
+void drawLineChart(sf::RenderWindow& window, const sf::Font& font, const sf::FloatRect& bounds, const std::string& title,
+                    const std::vector<std::vector<float>>& series, const std::vector<sf::Color>& colors,
+                    const std::vector<std::string>& labels) {
+    sf::RectangleShape box(sf::Vector2f(bounds.width, bounds.height));
+    box.setPosition(bounds.left, bounds.top);
+    box.setFillColor(sf::Color(10, 10, 10, 200));
+    box.setOutlineColor(sf::Color(80, 80, 80));
+    box.setOutlineThickness(1.f);
+    window.draw(box);
+
+    sf::Text titleText(title, font, 14);
+    titleText.setFillColor(sf::Color(210, 210, 210));
+    titleText.setPosition(bounds.left + 8.f, bounds.top + 4.f);
+    window.draw(titleText);
+
+    const float plotTop = bounds.top + 26.f;
+    const float plotBottom = bounds.top + bounds.height - 8.f;
+    const float plotLeft = bounds.left + 8.f;
+    const float plotRight = bounds.left + bounds.width - 8.f;
+    const float plotHeight = plotBottom - plotTop;
+    const float plotWidth = plotRight - plotLeft;
+
+    std::size_t pointCount = 0;
+    for (const auto& s : series) {
+        pointCount = std::max(pointCount, s.size());
+    }
+    if (pointCount < 2) {
+        return; // not enough data yet to draw a meaningful line
+    }
+
+    float minValue = 0.f;
+    float maxValue = 0.f;
+    for (const auto& s : series) {
+        for (float v : s) {
+            maxValue = std::max(maxValue, v);
+        }
+    }
+    if (maxValue <= minValue) {
+        maxValue = minValue + 1.f; // avoid a divide-by-zero flatline
+    }
+
+    // A few horizontal gridlines with their value, so the scale isn't a mystery.
+    const int gridLines = 3;
+    for (int g = 0; g <= gridLines; ++g) {
+        float t = static_cast<float>(g) / gridLines;
+        float y = plotBottom - t * plotHeight;
+        sf::Vertex line[] = {
+            sf::Vertex(sf::Vector2f(plotLeft, y), sf::Color(50, 50, 50)),
+            sf::Vertex(sf::Vector2f(plotRight, y), sf::Color(50, 50, 50))
+        };
+        window.draw(line, 2, sf::Lines);
+
+        std::ostringstream valueLabel;
+        valueLabel << std::fixed << std::setprecision(0) << (minValue + t * (maxValue - minValue));
+        sf::Text gridText(valueLabel.str(), font, 10);
+        gridText.setFillColor(sf::Color(130, 130, 130));
+        gridText.setPosition(plotLeft, y - 12.f);
+        window.draw(gridText);
+    }
+
+    for (std::size_t s = 0; s < series.size(); ++s) {
+        const auto& data = series[s];
+        if (data.size() < 2) {
+            continue;
+        }
+        sf::VertexArray line(sf::LineStrip, data.size());
+        for (std::size_t i = 0; i < data.size(); ++i) {
+            float t = static_cast<float>(i) / static_cast<float>(data.size() - 1);
+            float x = plotLeft + t * plotWidth;
+            float valueT = (data[i] - minValue) / (maxValue - minValue);
+            float y = plotBottom - valueT * plotHeight;
+            line[i] = sf::Vertex(sf::Vector2f(x, y), colors[s]);
+        }
+        window.draw(line);
+    }
+
+    // Legend: a colored swatch + label per series, stacked along the top-right.
+    float legendX = plotRight - 90.f;
+    for (std::size_t s = 0; s < labels.size() && s < colors.size(); ++s) {
+        float legendY = plotTop + static_cast<float>(s) * 14.f;
+        sf::RectangleShape swatch(sf::Vector2f(8.f, 8.f));
+        swatch.setPosition(legendX, legendY + 2.f);
+        swatch.setFillColor(colors[s]);
+        window.draw(swatch);
+
+        sf::Text legendText(labels[s], font, 11);
+        legendText.setFillColor(sf::Color(200, 200, 200));
+        legendText.setPosition(legendX + 12.f, legendY);
+        window.draw(legendText);
+    }
 }
 
 void drawStartMenu(sf::RenderWindow& window, const sf::Font& font, const sf::FloatRect& loadMapButton,

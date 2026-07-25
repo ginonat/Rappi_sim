@@ -67,3 +67,11 @@ std::vector<Node*> findPath(Node* start, Node* goal) {
     std::reverse(path.begin(), path.end());
     return path;
 }
+
+float pathDistance(const std::vector<Node*>& path) {
+    float total = 0.f;
+    for (std::size_t i = 1; i < path.size(); ++i) {
+        total += distance(path[i - 1]->position, path[i]->position) * edgeTierMultiplier(findEdgeTier(path[i - 1], path[i]));
+    }
+    return total;
+}
