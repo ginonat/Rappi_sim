@@ -15,6 +15,14 @@ void drawCity(sf::RenderWindow& window, const std::vector<Node>& nodes, sf::Circ
     window.draw(streets);
 }
 
+void drawRequests(sf::RenderWindow& window, std::vector<sf::RectangleShape>& packages, std::vector<sf::VertexArray>& arrows) {
+    for (auto& package : packages) {
+        window.draw(package);
+    }
+    for (auto& arrow : arrows) {
+        window.draw(arrow);
+    }
+}
 
 void drawRunners(sf::RenderWindow& window, std::vector<Runner>& runners) {
     for (auto& runner : runners) {

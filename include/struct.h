@@ -24,6 +24,14 @@ struct Runner {
     void moveToNextNode();
 };
 
+struct Request
+{
+    Node* holder;
+    Runner* designatedRunner;
+    Node* destination;
+    bool satisfied;
+};
+
 // Node struct
 struct Node {
     int id;

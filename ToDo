@@ -1,0 +1,60 @@
+To visually represent delivery requests, you should first create a shape to represent the package and the arrow. The sf::RectangleShape and sf::Vertex classes offered by the SFML library could be useful here. You could use a rectangle to represent the package (marked as X), and a line (two vertices) to act as the arrow. You could then modify your main.cpp and draw.cpp accordingly:
+
+Changes in main.cpp:
+
+```cpp
+std::vector<sf::RectangleShape> packages;
+std::vector<sf::VertexArray> arrows;
+
+// inside game loop
+for (const auto& request : requests) {
+    if (!request.delivered) {
+        sf::RectangleShape package(sf::Vector2f(10, 10)); // (width, height) of the rectangle
+        package.setPosition(request.pickupNode->position);
+        packages.push_back(package);
+        
+        sf::VertexArray arrow(sf::Lines, 2);
+        arrow[0].position = request.pickupNode->position;
+        arrow[1].position = request.destinationNode->position;
+        arrows.push_back(arrow);
+    }
+}
+
+drawRequests(window, packages, arrows);
+```
+
+Add this function in draw.h:
+
+```cpp
+void drawRequests(sf::RenderWindow& window, std::vector<sf::RectangleShape>& packages, std::vector<sf::VertexArray>& arrows);
+```
+
+And implement the function in draw.cpp:
+
+```cpp
+void drawRequests(sf::RenderWindow& window, std::vector<sf::RectangleShape>& packages, std::vector<sf::VertexArray>& arrows) {
+    for (auto& package : packages) {
+        window.draw(package);
+    }
+    for (auto& arrow : arrows) {
+        window.draw(arrow);
+    }
+}
+```
+In your game loop, you create a rectangle and arrow for each undelivered request. These figures are then passed to the `drawRequests` function, which draws them on the window.
+
+Please replace the package's size and adjust the color settings as per your requirements. Note that we are creating a new set of shapes during each frame rendering cycle. This might cause performance issues if requests are many and get rarely delivered. You can optimize this by having a mechanism to reuse graphics objects and remove the ones that are matched after some event occurs, like delivery.
+
+
+Lastly, you would need to add a loop to remove satisfied requests from the list:
+
+```cpp
+...
+// Remove satisfied requests
+requests.erase(std::remove_if(requests.begin(), requests.end(), [](const Request& request){ return request.satisfied; }), requests.end());
+...
+```
+
+For all of this to work you need to make sure that your vector of `Runner` instances, `runners`, is not modified (elements added or removed) after generating the requests. Otherwise, references stored in requests might become invalid. If you cannot ensure this, consider using different data structure (like `std::list` for `runners`) which does not invalidate references/pointers on insertion/deletion, or store runners' indices or IDs instead of pointers.
+
+

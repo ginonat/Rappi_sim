@@ -38,7 +38,15 @@ int main()
     //const int rows = 20;
     //const int cols = 20;
     //std::vector<Node> nodes = createNodes(rows, cols, window);
-    std::vector<Node> nodes = loadNodes("maps/new_city.map"); // Load nodes from file
+    std::vector<Node> nodes = loadNodes("maps/lion_city.map"); // Load nodes from file
+
+    //create a vector of `Request` structures 
+    std::vector<Request> requests;
+    float requestProbability = 0.0001;  // Set the probability of a shop generating a delivery request
+
+    // Create shape for packages
+    std::vector<sf::RectangleShape> packages;
+    std::vector<sf::VertexArray> arrows;
 
     // Create a circle shape for the nodes
     float nodeRadius = 2.0f;
@@ -96,7 +104,7 @@ int main()
                         window.setTitle("Unpaused: Edit mode off");
                     }
                 } else if (edit_mode && event.key.code == sf::Keyboard::L) {
-                    nodes = loadNodes("city.map"); // Load nodes from file
+                    nodes = loadNodes("maps/lion_city.map"); // Load nodes from file
                 }
             }
             if (edit_mode) { 
@@ -148,7 +156,6 @@ int main()
         window.clear(sf::Color::Black);
 
         // Interpolate runner position towards target node
-
         for (auto& runner : runners) {
             sf::Vector2f distance_to_target = runner.target_node->position - runner.box.getPosition();
             float distance = std::sqrt(distance_to_target.x * distance_to_target.x + distance_to_target.y * distance_to_target.y);
@@ -166,15 +173,38 @@ int main()
             }
 
         }
+        
+        //generating a delivery request
+        if (!runners.empty()) {
+            for (auto& node : nodes) {
+                if (node.has_shop && (rand() / float(RAND_MAX)) < requestProbability) {
+                    Node* destinationNode = &nodes[rand() % nodes.size()];
+                    Runner* designatedRunner = &runners[rand() % runners.size()];
+                    requests.push_back({&node, designatedRunner, destinationNode, false});
+                    // define the package drawable objects
+                    sf::RectangleShape package(sf::Vector2f(10, 10)); // (width, height) of the rectangle
+                    package.setPosition(node.position);
+                    packages.push_back(package);
+                    
+                    sf::VertexArray arrow(sf::Lines, 2);
+                    arrow[0].position = node.position;
+                    arrow[1].position = destinationNode->position;
+                    arrows.push_back(arrow);
+                }
+            }
+        }
 
         drawCity(window, nodes, nodeCircle, streets, shopCircle);
         drawRunners(window, runners);
+        drawRequests(window, packages, arrows);
 
         if (edit_mode and (nodeSelect.getPosition() != sf::Vector2f(0,0)) ){
             window.draw(nodeSelect);
         }
-        if (edit_mode and (sf::Keyboard::isKeyPressed(sf::Keyboard::S))) {
-            saveNodes(nodes, "new_city.map");
+        if (event.type == sf::Event::KeyPressed) {
+            if (edit_mode and (sf::Keyboard::isKeyPressed(sf::Keyboard::G))) {
+                saveNodes(nodes, "new_city.map");
+            }
         }
 
         // Display the window
