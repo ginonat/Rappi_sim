@@ -76,15 +76,26 @@ void loadCityAndResetSimulation(const std::string& path, std::list<Node>& nodes,
     selectedNodes.clear();
 }
 
-// Same reset semantics as loadCityAndResetSimulation, but for a freshly generated grid
-// filling `rect` rather than one read from disk.
-void generateGridAndResetSimulation(int rows, int cols, sf::FloatRect rect, std::list<Node>& nodes, sf::VertexArray& streets,
-                                     std::deque<Runner>& runners, std::list<Request>& requests, std::vector<Node*>& selectedNodes) {
-    nodes = createNodes(rows, cols, rect);
-    streets = buildStreets(nodes);
-    runners.clear();
-    requests.clear();
+// Generates a fresh NxM grid filling `rect` and splices it into the existing city rather
+// than replacing it, so multiple grids can be built up (one drag at a time) and then wired
+// together by hand with shift+click. IDs are offset past every existing node's id so the
+// two grids stay distinguishable on save/load. std::list::splice moves nodes without
+// invalidating pointers to them, so unlike a load/delete this never needs to touch
+// runners/requests - only the selection changes, to the freshly placed grid, ready to be
+// moved or connected immediately.
+void generateGridAndAddToCity(int rows, int cols, sf::FloatRect rect, std::list<Node>& nodes, sf::VertexArray& streets,
+                               std::vector<Node*>& selectedNodes) {
+    int idOffset = 0;
+    for (const auto& n : nodes) {
+        idOffset = std::max(idOffset, n.id + 1);
+    }
+    std::list<Node> grid = createNodes(rows, cols, rect, idOffset);
     selectedNodes.clear();
+    for (auto& n : grid) {
+        selectedNodes.push_back(&n);
+    }
+    nodes.splice(nodes.end(), grid);
+    streets = buildStreets(nodes);
 }
 
 // Removes `toDelete` from `nodes`, along with any edge in a surviving node that pointed at
@@ -475,7 +486,7 @@ int main()
                         gridToolArmed = false;
                         sf::Vector2f endWorld = window.mapPixelToCoords(mousePixel, view);
                         sf::FloatRect rect = makeRect(gridDragStartWorld, endWorld);
-                        generateGridAndResetSimulation(gridRows, gridCols, rect, nodes, streets, runners, requests, selectedNodes);
+                        generateGridAndAddToCity(gridRows, gridCols, rect, nodes, streets, selectedNodes);
                     } else if (boxSelecting) {
                         float dx = static_cast<float>(mousePixel.x - mouseDownPixel.x);
                         float dy = static_cast<float>(mousePixel.y - mouseDownPixel.y);

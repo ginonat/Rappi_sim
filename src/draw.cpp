@@ -121,7 +121,7 @@ void drawSidebar(sf::RenderWindow& window, const sf::Font& font, const sf::Vecto
         "N (edit)  toggle grid snap\n"
         "Up/Down (edit)  grid rows\n"
         "Left/Right (edit)  grid cols\n"
-        "C (edit)  arm grid tool, drag to place\n"
+        "C (edit)  arm grid tool, drag to add grid\n"
         "+  spawn runner\n"
         "scroll  zoom\n"
         "middle drag  pan\n\n"

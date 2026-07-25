@@ -11,7 +11,7 @@
 // Create an NxM grid of nodes filling `bounds`. Built via a temporary index vector
 // (row*cols+col -> pointer into the list) since std::list has no operator[] for the
 // index-based lookups the original vector-based version relied on during construction.
-std::list<Node> createNodes(int rows, int cols, sf::FloatRect bounds) {
+std::list<Node> createNodes(int rows, int cols, sf::FloatRect bounds, int idOffset) {
     std::list<Node> nodes;
     std::vector<Node*> index(static_cast<std::size_t>(rows) * cols, nullptr);
 
@@ -21,7 +21,7 @@ std::list<Node> createNodes(int rows, int cols, sf::FloatRect bounds) {
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
             Node node;
-            node.id = count;
+            node.id = idOffset + count;
             count = count + 1;
             node.position = sf::Vector2f(bounds.left + j * nodeSpacing_x + (rand()%20) * nodeSpacing_x/300,
                                           bounds.top + i * nodeSpacing_y + (rand()%20) * nodeSpacing_y/300);

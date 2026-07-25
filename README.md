@@ -54,7 +54,7 @@ On launch, click **Load Map** and pick a city to start. In the simulation:
 | `Delete` / `Backspace` (edit mode)    | Delete every selected node (and their connections)     |
 | `N` (edit mode)                       | Toggle grid snap (25px) for placing/dragging nodes      |
 | `Up`/`Down`/`Left`/`Right` (edit mode)| Adjust the pending grid tool's rows/cols                |
-| `C` (edit mode)                       | Arm the grid tool — the next drag defines two corners and generates that NxM grid there, replacing the map (`Esc` or `C` again cancels) |
+| `C` (edit mode)                       | Arm the grid tool — the next drag defines two corners and adds that NxM grid there (selected, ready to connect to the rest of the map), leaving the existing map intact (`Esc` or `C` again cancels) |
 | `S` (edit mode)                       | Mark every selected node as a shop                      |
 | `G` (edit mode)                       | Save the current city to `maps/new_city.map`            |
 | `L` (edit mode)                       | Reload the current city from disk                       |
