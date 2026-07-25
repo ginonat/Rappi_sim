@@ -40,9 +40,17 @@ int main()
     sf::Vector2f panAnchorWorld;
 
 
-    // edit mode set so false 
+    // edit mode set so false
     bool edit_mode = false;
-    sf::CircleShape nodeSelect(5.0f);
+    const float nodePickRadius = 20.f; // pixels, screen-space snap radius for node picking
+    sf::CircleShape nodeSelect(7.0f);
+    nodeSelect.setFillColor(sf::Color::Transparent);
+    nodeSelect.setOutlineColor(sf::Color::Red);
+    nodeSelect.setOutlineThickness(2.f);
+    sf::CircleShape nodeHover(7.0f);
+    nodeHover.setFillColor(sf::Color::Transparent);
+    nodeHover.setOutlineColor(sf::Color(0, 200, 255, 200));
+    nodeHover.setOutlineThickness(1.5f);
     Node* closestNode = nullptr;
     float shopRadius=5;
     sf::CircleShape shopCircle(shopRadius);
@@ -60,7 +68,7 @@ int main()
 
     // Create shape for packages
     std::vector<sf::RectangleShape> packages;
-    std::vector<sf::VertexArray> arrows;
+    sf::Clock animationClock;
 
     // Create a circle shape for the nodes
     float nodeRadius = 2.0f;
@@ -89,6 +97,29 @@ int main()
 
     // Run the game loop
     while (window.isOpen()) {
+        // Find the node nearest the cursor, in screen space, for edit-mode hover/selection.
+        // Screen space keeps the pick radius feeling consistent regardless of zoom level,
+        // and sidesteps the pixel-vs-world mismatch a raw pixel/world comparison would have.
+        bool mouseOverSidebar = sf::Mouse::getPosition(window).x >= static_cast<int>(window.getSize().x - sidebarWidth);
+        Node* hoverNode = nullptr;
+        if (edit_mode && !mouseOverSidebar) {
+            sf::Vector2i mousePixel = sf::Mouse::getPosition(window);
+            float closestDist = std::numeric_limits<float>::max();
+            for (auto& node : nodes) {
+                sf::Vector2i nodeScreen = window.mapCoordsToPixel(node.position, view);
+                float dx = static_cast<float>(nodeScreen.x - mousePixel.x);
+                float dy = static_cast<float>(nodeScreen.y - mousePixel.y);
+                float dist = std::sqrt(dx * dx + dy * dy);
+                if (dist < closestDist) {
+                    closestDist = dist;
+                    hoverNode = &node;
+                }
+            }
+            if (closestDist > nodePickRadius) {
+                hoverNode = nullptr;
+            }
+        }
+
         // Handle events
         sf::Event event;
         while (window.pollEvent(event)) {
@@ -97,6 +128,7 @@ int main()
             } else if (event.type == sf::Event::Resized) {
                 view = sf::View(sf::FloatRect(0, 0, event.size.width, event.size.height));
                 uiView = view;
+                zoom = 1.f;
                 window.setView(view);
             } else if (event.type == sf::Event::MouseWheelMoved) {
                 // Zoom around the point under the cursor: capture its world position,
@@ -115,6 +147,9 @@ int main()
                 if (event.mouseButton.button == sf::Mouse::Middle) {
                     panning = true;
                     panAnchorWorld = window.mapPixelToCoords(sf::Mouse::getPosition(window), view);
+                } else if (event.mouseButton.button == sf::Mouse::Left && edit_mode && hoverNode != nullptr) {
+                    closestNode = hoverNode;
+                    std::cout << "Selected node: position=(" << closestNode->position.x << "," << closestNode->position.y << ")" << std::endl;
                 }
             } else if (event.type == sf::Event::MouseButtonReleased) {
                 if (event.mouseButton.button == sf::Mouse::Middle) {
@@ -135,28 +170,11 @@ int main()
                     nodes = loadNodes("maps/lion_city.map"); // Load nodes from file
                 }
             }
-            bool mouseOverSidebar = sf::Mouse::getPosition(window).x >= static_cast<int>(window.getSize().x - sidebarWidth);
             if (edit_mode) {
-                if (!mouseOverSidebar && sf::Mouse::isButtonPressed(sf::Mouse::Left)) {
-                    sf::Vector2i mousePos = sf::Mouse::getPosition(window);
-                    float closestDist = std::numeric_limits<float>::max();
-                    for (auto& node : nodes) {
-                        float dist = std::sqrt(std::pow(node.position.x - mousePos.x, 2) + std::pow(node.position.y - mousePos.y, 2));
-                        if (dist < closestDist) {
-                            closestDist = dist;
-                            closestNode = &node;
-                        }
-                    }
-                    std::cout << "Selected node: position=(" << closestNode->position.x << "," << closestNode->position.y << ")"  << std::endl;
-                    
-                    // Highlight the selected node by turning red
-                    nodeSelect.setFillColor(sf::Color::Red);
-                    nodeSelect.setPosition(closestNode->position.x - 5.0f, closestNode->position.y - 5.0f);
-                }
                 if (sf::Keyboard::isKeyPressed(sf::Keyboard::S) and closestNode!=nullptr) {
                     closestNode->has_shop = true;
                 }
-            } else { 
+            } else {
                 if (event.type == sf::Event::KeyPressed) {
                     // Add new runner
                     if (event.key.code >= sf::Keyboard::Add) {
@@ -223,21 +241,23 @@ int main()
                     sf::RectangleShape package(sf::Vector2f(10, 10)); // (width, height) of the rectangle
                     package.setPosition(node.position);
                     packages.push_back(package);
-                    
-                    sf::VertexArray arrow(sf::Lines, 2);
-                    arrow[0].position = node.position;
-                    arrow[1].position = destinationNode->position;
-                    arrows.push_back(arrow);
                 }
             }
         }
 
         drawCity(window, nodes, nodeCircle, streets, shopCircle);
         drawRunners(window, runners);
-        drawRequests(window, packages, arrows);
+        drawRequests(window, requests, packages, animationClock.getElapsedTime().asSeconds());
 
-        if (edit_mode and (nodeSelect.getPosition() != sf::Vector2f(0,0)) ){
-            window.draw(nodeSelect);
+        if (edit_mode) {
+            if (hoverNode != nullptr && hoverNode != closestNode) {
+                nodeHover.setPosition(hoverNode->position - sf::Vector2f(nodeHover.getRadius(), nodeHover.getRadius()));
+                window.draw(nodeHover);
+            }
+            if (closestNode != nullptr) {
+                nodeSelect.setPosition(closestNode->position - sf::Vector2f(nodeSelect.getRadius(), nodeSelect.getRadius()));
+                window.draw(nodeSelect);
+            }
         }
         if (event.type == sf::Event::KeyPressed) {
             if (edit_mode and (sf::Keyboard::isKeyPressed(sf::Keyboard::G))) {

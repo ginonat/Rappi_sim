@@ -16,12 +16,59 @@ void drawCity(sf::RenderWindow& window, const std::vector<Node>& nodes, sf::Circ
     window.draw(streets);
 }
 
-void drawRequests(sf::RenderWindow& window, std::vector<sf::RectangleShape>& packages, std::vector<sf::VertexArray>& arrows) {
+namespace {
+sf::Vector2f quadraticBezier(sf::Vector2f p0, sf::Vector2f p1, sf::Vector2f p2, float t) {
+    float u = 1.f - t;
+    return u * u * p0 + 2.f * u * t * p1 + t * t * p2;
+}
+}
+
+void drawRequests(sf::RenderWindow& window, const std::vector<Request>& requests, std::vector<sf::RectangleShape>& packages, float time) {
     for (auto& package : packages) {
         window.draw(package);
     }
-    for (auto& arrow : arrows) {
-        window.draw(arrow);
+
+    const int dotCount = 24;
+    const float curvature = 0.18f;
+    const float flowSpeed = 0.35f; // fraction of the path travelled per second
+    const int flowDots = 3;
+
+    for (std::size_t i = 0; i < requests.size(); ++i) {
+        const Request& request = requests[i];
+        if (request.satisfied) {
+            continue;
+        }
+        sf::Vector2f p0 = request.holder->position;
+        sf::Vector2f p2 = request.destination->position;
+        sf::Vector2f mid = (p0 + p2) / 2.f;
+        sf::Vector2f dir = p2 - p0;
+        float distance = std::sqrt(dir.x * dir.x + dir.y * dir.y);
+        sf::Vector2f perp(-dir.y, dir.x);
+        if (distance > 0.f) {
+            perp /= distance;
+        }
+        sf::Vector2f p1 = mid + perp * (curvature * distance);
+
+        // Dim dotted curve showing the full path
+        for (int d = 0; d <= dotCount; ++d) {
+            float t = static_cast<float>(d) / dotCount;
+            sf::Vector2f pos = quadraticBezier(p0, p1, p2, t);
+            sf::CircleShape dot(1.5f);
+            dot.setFillColor(sf::Color(255, 255, 255, 70));
+            dot.setPosition(pos - sf::Vector2f(1.5f, 1.5f));
+            window.draw(dot);
+        }
+
+        // Brighter dots flowing from the shop towards the destination, staggered per request
+        float stagger = static_cast<float>(i % 5) * 0.15f;
+        for (int k = 0; k < flowDots; ++k) {
+            float t = std::fmod(time * flowSpeed + stagger + static_cast<float>(k) / flowDots, 1.f);
+            sf::Vector2f pos = quadraticBezier(p0, p1, p2, t);
+            sf::CircleShape flowDot(2.5f);
+            flowDot.setFillColor(sf::Color(255, 220, 80, 220));
+            flowDot.setPosition(pos - sf::Vector2f(2.5f, 2.5f));
+            window.draw(flowDot);
+        }
     }
 }
 
