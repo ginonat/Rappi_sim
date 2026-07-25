@@ -1,7 +1,7 @@
-#include <vector>
+#include <deque>
 
-std::vector<Node> createNodes(int rows, int cols, sf::RenderWindow& window);
+std::deque<Node> createNodes(int rows, int cols, sf::RenderWindow& window);
 
-std::vector<Node> loadNodes(const std::string& filename);
+std::deque<Node> loadNodes(const std::string& filename);
 
-void saveNodes(const std::vector<Node>& nodes, const std::string& filename);
+void saveNodes(const std::deque<Node>& nodes, const std::string& filename);

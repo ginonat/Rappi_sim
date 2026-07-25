@@ -2,7 +2,7 @@
 #include <iomanip>
 #include <sstream>
 #include <string>
-void drawCity(sf::RenderWindow& window, const std::vector<Node>& nodes, sf::CircleShape nodeCircle, const sf::VertexArray& streets, sf::CircleShape& shopCircle) {
+void drawCity(sf::RenderWindow& window, const std::deque<Node>& nodes, sf::CircleShape nodeCircle, const sf::VertexArray& streets, sf::CircleShape& shopCircle) {
     for (const auto& node : nodes) {
         if(node.has_shop){
             shopCircle.setPosition(node.position);
@@ -97,7 +97,8 @@ void drawRunners(sf::RenderWindow& window, std::deque<Runner>& runners) {
 }
 
 void drawSidebar(sf::RenderWindow& window, const sf::Font& font, const sf::Vector2f& position, const sf::Vector2f& size,
-                  bool edit_mode, std::size_t numRunners, std::size_t numShops, std::size_t numRequests) {
+                  bool edit_mode, std::size_t numRunners, std::size_t numShops, std::size_t numRequests,
+                  const std::string& currentTierLabel, bool gridSnapEnabled, int gridSize) {
     sf::RectangleShape background(size);
     background.setPosition(position);
     background.setFillColor(sf::Color(15, 15, 15, 220));
@@ -110,6 +111,13 @@ void drawSidebar(sf::RenderWindow& window, const sf::Font& font, const sf::Vecto
         "S  mark shop (edit)\n"
         "G  save map (edit)\n"
         "L  load map (edit)\n"
+        "click empty (edit)  add node\n"
+        "shift+click (edit)  connect/disconnect\n"
+        "drag node (edit)  move\n"
+        "1/2/3 (edit)  set street tier\n"
+        "N (edit)  toggle grid snap\n"
+        "+/- (edit)  grid size\n"
+        "C (edit)  generate grid\n"
         "+  spawn runner\n"
         "scroll  zoom\n"
         "middle drag  pan\n\n"
@@ -118,6 +126,13 @@ void drawSidebar(sf::RenderWindow& window, const sf::Font& font, const sf::Vecto
         "Runners: " + std::to_string(numRunners) + "\n"
         "Shops: " + std::to_string(numShops) + "\n"
         "Requests: " + std::to_string(numRequests);
+
+    if (edit_mode) {
+        body += "\n\nEditor\n"
+                "Tier: " + currentTierLabel + "\n"
+                "Grid snap: " + std::string(gridSnapEnabled ? "On" : "Off") + "\n"
+                "Grid size: " + std::to_string(gridSize) + "x" + std::to_string(gridSize);
+    }
 
     sf::Text text(body, font, 14);
     text.setFillColor(sf::Color::White);

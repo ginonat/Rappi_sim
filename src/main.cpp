@@ -43,12 +43,21 @@ std::string mapDisplayName(const std::string& path) {
     return path.substr(start, end - start);
 }
 
-sf::VertexArray buildStreets(const std::vector<Node>& nodes) {
+sf::Color colorForTier(EdgeTier tier) {
+    switch (tier) {
+        case EdgeTier::Long: return sf::Color(255, 165, 0);   // orange
+        case EdgeTier::VeryLong: return sf::Color(255, 60, 60); // red
+        default: return sf::Color::White;
+    }
+}
+
+sf::VertexArray buildStreets(const std::deque<Node>& nodes) {
     sf::VertexArray streets(sf::Lines, 0);
     for (const auto& node : nodes) {
-        for (const auto& neighbor : node.neighbors) {
-            streets.append(sf::Vertex(node.position, sf::Color::White));
-            streets.append(sf::Vertex(neighbor->position, sf::Color::White));
+        for (const auto& edge : node.edges) {
+            sf::Color color = colorForTier(edge.tier);
+            streets.append(sf::Vertex(node.position, color));
+            streets.append(sf::Vertex(edge.target->position, color));
         }
     }
     return streets;
@@ -57,13 +66,28 @@ sf::VertexArray buildStreets(const std::vector<Node>& nodes) {
 // Loads a city and discards all in-flight simulation state. Necessary, not just tidy:
 // runners/requests hold raw Node*/Runner*/Request* pointers into these containers, and
 // replacing `nodes` invalidates every one of them.
-void loadCityAndResetSimulation(const std::string& path, std::vector<Node>& nodes, sf::VertexArray& streets,
+void loadCityAndResetSimulation(const std::string& path, std::deque<Node>& nodes, sf::VertexArray& streets,
                                  std::deque<Runner>& runners, std::list<Request>& requests, Node*& closestNode) {
     nodes = loadNodes(path);
     streets = buildStreets(nodes);
     runners.clear();
     requests.clear();
     closestNode = nullptr;
+}
+
+// Same reset semantics as loadCityAndResetSimulation, but for a freshly generated grid
+// rather than one read from disk.
+void generateGridAndResetSimulation(int gridSize, sf::RenderWindow& window, std::deque<Node>& nodes, sf::VertexArray& streets,
+                                     std::deque<Runner>& runners, std::list<Request>& requests, Node*& closestNode) {
+    nodes = createNodes(gridSize, gridSize, window);
+    streets = buildStreets(nodes);
+    runners.clear();
+    requests.clear();
+    closestNode = nullptr;
+}
+
+sf::Vector2f snapToGrid(sf::Vector2f pos, float size) {
+    return sf::Vector2f(std::round(pos.x / size) * size, std::round(pos.y / size) * size);
 }
 
 sf::FloatRect computeLoadMapButtonBounds(const sf::RenderWindow& window) {
@@ -145,12 +169,12 @@ int main()
 
     // fixed-to-screen view for the sidebar HUD, unaffected by zoom/pan
     sf::View uiView(window.getDefaultView());
-    const float sidebarWidth = 200.f;
+    const float sidebarWidth = 260.f; // wide enough for the longer editor-control lines
 
     // runner speed slider: a global multiplier applied on top of each runner's own
     // movement_speed, so it can be adjusted live without touching already-spawned runners
     const float sliderMargin = 10.f;
-    const float sliderOffsetY = 300.f; // from the top of the sidebar, clear of the stats text
+    const float sliderOffsetY = 520.f; // from the top of the sidebar, clear of the (longer, in edit mode) text
     const float speedMin = 0.2f;
     const float speedMax = 5.f;
     float speedMultiplier = 1.f;
@@ -191,9 +215,17 @@ int main()
     // Create nodes
     //const int rows = 20;
     //const int cols = 20;
-    //std::vector<Node> nodes = createNodes(rows, cols, window);
+    //std::deque<Node> nodes = createNodes(rows, cols, window);
     // Left empty until a map is chosen from the start menu.
-    std::vector<Node> nodes;
+    std::deque<Node> nodes;
+
+    // Editor state: tier used for newly-connected streets, grid-snap toggle, and the
+    // pending size for a bulk-generated grid (rows == cols == gridSize).
+    EdgeTier currentTier = EdgeTier::Normal;
+    bool gridSnapEnabled = false;
+    const float gridSnapSize = 25.f;
+    int gridSize = 5;
+    bool draggingNode = false;
 
     //create a list of `Request` structures. A list, not a vector/deque, because runners hold
     //long-lived pointers into it (Runner::activeRequest) that must keep working even after
@@ -308,13 +340,50 @@ int main()
                     // this hit-box is generous on both sides of it for easy grabbing.
                     float sliderTop = sliderOffsetY + 12.f;
                     float sliderBottom = sliderOffsetY + 32.f;
-                    if (mousePixel.x >= sliderLeft && mousePixel.x <= sliderRight &&
-                        mousePixel.y >= sliderTop && mousePixel.y <= sliderBottom) {
+                    bool onSlider = mousePixel.x >= sliderLeft && mousePixel.x <= sliderRight &&
+                                     mousePixel.y >= sliderTop && mousePixel.y <= sliderBottom;
+                    if (onSlider) {
                         draggingSlider = true;
                         speedMultiplier = sliderValueFromMouseX(mousePixel.x, sliderLeft, sliderRight, speedMin, speedMax);
-                    } else if (edit_mode && hoverNode != nullptr) {
-                        closestNode = hoverNode;
-                        std::cout << "Selected node: position=(" << closestNode->position.x << "," << closestNode->position.y << ")" << std::endl;
+                    } else if (edit_mode && !mouseOverSidebar) {
+                        bool shiftHeld = sf::Keyboard::isKeyPressed(sf::Keyboard::LShift) ||
+                                         sf::Keyboard::isKeyPressed(sf::Keyboard::RShift);
+                        if (shiftHeld && closestNode != nullptr && hoverNode != nullptr && hoverNode != closestNode) {
+                            // Toggle the connection between the selected node and the one just clicked.
+                            auto it = std::find_if(closestNode->edges.begin(), closestNode->edges.end(),
+                                                    [&](const Edge& e) { return e.target == hoverNode; });
+                            if (it != closestNode->edges.end()) {
+                                closestNode->edges.erase(it);
+                                auto it2 = std::find_if(hoverNode->edges.begin(), hoverNode->edges.end(),
+                                                         [&](const Edge& e) { return e.target == closestNode; });
+                                if (it2 != hoverNode->edges.end()) {
+                                    hoverNode->edges.erase(it2);
+                                }
+                            } else {
+                                closestNode->edges.push_back({hoverNode, currentTier});
+                                hoverNode->edges.push_back({closestNode, currentTier});
+                            }
+                            streets = buildStreets(nodes);
+                        } else if (hoverNode != nullptr) {
+                            closestNode = hoverNode;
+                            draggingNode = true;
+                            std::cout << "Selected node: position=(" << closestNode->position.x << "," << closestNode->position.y << ")" << std::endl;
+                        } else if (!shiftHeld) {
+                            // Empty space, no modifier: drop a new, isolated node here.
+                            sf::Vector2f worldPos = window.mapPixelToCoords(mousePixel, view);
+                            if (gridSnapEnabled) {
+                                worldPos = snapToGrid(worldPos, gridSnapSize);
+                            }
+                            int newId = 0;
+                            for (const auto& n : nodes) {
+                                newId = std::max(newId, n.id + 1);
+                            }
+                            Node newNode;
+                            newNode.id = newId;
+                            newNode.position = worldPos;
+                            nodes.push_back(newNode);
+                            closestNode = &nodes.back();
+                        }
                     }
                 }
             } else if (event.type == sf::Event::MouseButtonReleased) {
@@ -322,6 +391,7 @@ int main()
                     panning = false;
                 } else if (event.mouseButton.button == sf::Mouse::Left) {
                     draggingSlider = false;
+                    draggingNode = false;
                 }
             }
 
@@ -330,6 +400,7 @@ int main()
                 if (event.type == sf::Event::KeyPressed) {
                     if (event.key.code == sf::Keyboard::E) {
                         edit_mode = !edit_mode;
+                        draggingNode = false;
                         if (edit_mode) {
                             window.setTitle("Paused: Edit mode on");
                         } else {
@@ -337,6 +408,22 @@ int main()
                         }
                     } else if (edit_mode && event.key.code == sf::Keyboard::L) {
                         loadCityAndResetSimulation(currentMapPath, nodes, streets, runners, requests, closestNode);
+                    } else if (edit_mode && event.key.code == sf::Keyboard::G) {
+                        saveNodes(nodes, "maps/new_city.map");
+                    } else if (edit_mode && event.key.code == sf::Keyboard::Num1) {
+                        currentTier = EdgeTier::Normal;
+                    } else if (edit_mode && event.key.code == sf::Keyboard::Num2) {
+                        currentTier = EdgeTier::Long;
+                    } else if (edit_mode && event.key.code == sf::Keyboard::Num3) {
+                        currentTier = EdgeTier::VeryLong;
+                    } else if (edit_mode && event.key.code == sf::Keyboard::N) {
+                        gridSnapEnabled = !gridSnapEnabled;
+                    } else if (edit_mode && event.key.code == sf::Keyboard::C) {
+                        generateGridAndResetSimulation(gridSize, window, nodes, streets, runners, requests, closestNode);
+                    } else if (edit_mode && (event.key.code == sf::Keyboard::Add || event.key.code == sf::Keyboard::Equal)) {
+                        gridSize = std::min(gridSize + 1, 20);
+                    } else if (edit_mode && (event.key.code == sf::Keyboard::Subtract || event.key.code == sf::Keyboard::Dash)) {
+                        gridSize = std::max(gridSize - 1, 2);
                     }
                 }
                 if (edit_mode) {
@@ -346,7 +433,7 @@ int main()
                 } else {
                     if (event.type == sf::Event::KeyPressed) {
                         // Add new runner
-                        if (event.key.code >= sf::Keyboard::Add) {
+                        if (event.key.code == sf::Keyboard::Add) {
                             Node* start_node = &nodes[rand() % nodes.size()];
                             runners.emplace_back(start_node, sf::Vector2f(10, 10), sf::Color::Blue, 0.03f);
                         }
@@ -382,6 +469,15 @@ int main()
             float sliderLeft = window.getSize().x - sidebarWidth + sliderMargin;
             float sliderRight = window.getSize().x - sliderMargin;
             speedMultiplier = sliderValueFromMouseX(sf::Mouse::getPosition(window).x, sliderLeft, sliderRight, speedMin, speedMax);
+        }
+
+        if (draggingNode && closestNode != nullptr) {
+            sf::Vector2f worldPos = window.mapPixelToCoords(sf::Mouse::getPosition(window), view);
+            if (gridSnapEnabled) {
+                worldPos = snapToGrid(worldPos, gridSnapSize);
+            }
+            closestNode->position = worldPos;
+            streets = buildStreets(nodes);
         }
 
         if (!edit_mode) {
@@ -424,7 +520,7 @@ int main()
             sf::Vector2f distance_to_target = runner.target_node->position - runner.box.getPosition();
             float distance = std::sqrt(distance_to_target.x * distance_to_target.x + distance_to_target.y * distance_to_target.y);
             if (distance > 0) {
-                float step = runner.movement_speed * speedMultiplier;
+                float step = runner.movement_speed * speedMultiplier / edgeTierMultiplier(runner.currentEdgeTier);
                 sf::Vector2f direction = distance_to_target / distance;
                 sf::Vector2f velocity = direction * step;
                 sf::Vector2f new_position = runner.box.getPosition() + velocity;
@@ -474,11 +570,6 @@ int main()
                 window.draw(nodeSelect);
             }
         }
-        if (event.type == sf::Event::KeyPressed) {
-            if (edit_mode and (sf::Keyboard::isKeyPressed(sf::Keyboard::G))) {
-                saveNodes(nodes, "new_city.map");
-            }
-        }
 
         // Draw the sidebar HUD, fixed to the screen regardless of the world view's zoom/pan
         if (fontLoaded) {
@@ -491,7 +582,8 @@ int main()
             sf::Vector2f sidebarPosition(window.getSize().x - sidebarWidth, 0.f);
             sf::Vector2f sidebarSize(sidebarWidth, static_cast<float>(window.getSize().y));
             window.setView(uiView);
-            drawSidebar(window, font, sidebarPosition, sidebarSize, edit_mode, runners.size(), numShops, requests.size());
+            drawSidebar(window, font, sidebarPosition, sidebarSize, edit_mode, runners.size(), numShops, requests.size(),
+                        edgeTierLabel(currentTier), gridSnapEnabled, gridSize);
             drawSpeedSlider(window, font, sf::Vector2f(sidebarPosition.x + sliderMargin, sidebarPosition.y + sliderOffsetY),
                              sidebarWidth - 2.f * sliderMargin, speedMin, speedMax, speedMultiplier);
             window.setView(view);

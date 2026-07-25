@@ -41,8 +41,9 @@ std::vector<Node*> findPath(Node* start, Node* goal) {
             continue; // a shorter route to this node was already processed
         }
 
-        for (Node* neighbor : current->neighbors) {
-            float newDist = currentDist + distance(current->position, neighbor->position);
+        for (const Edge& edge : current->edges) {
+            Node* neighbor = edge.target;
+            float newDist = currentDist + distance(current->position, neighbor->position) * edgeTierMultiplier(edge.tier);
             std::unordered_map<Node*, float>::iterator it = bestDistance.find(neighbor);
             if (it == bestDistance.end() || newDist < it->second) {
                 bestDistance[neighbor] = newDist;

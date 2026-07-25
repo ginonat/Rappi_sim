@@ -11,8 +11,12 @@ picks up the package, and takes the shortest path (Dijkstra) to the destination.
 
 - **Start menu** — pick which city to load from a "Load Map" button; every `.map` file in
   `maps/` shows up automatically.
-- **City graph editor** — click a node to select it, mark it as a shop, save/reload the
-  layout, all without leaving the app.
+- **A real map editor** — add nodes, connect/disconnect them, drag them around, snap to a
+  grid, or bulk-generate a fresh grid, all without leaving the app.
+- **Tiered streets** — a connection can be Normal, Long (10x), or Very Long (100x) the
+  distance it looks on screen. Drawing that to scale would blow the map up, so instead
+  it's color-coded (white/orange/red) and crossed proportionally slower — and routing
+  (`findPath`) treats it as genuinely farther, not just visually shorter.
 - **Real routing** — deliveries follow an actual shortest path over the street graph
   (`src/pathfinding.cpp`), not a straight line or a random walk.
 - **Live status at a glance** — idle runners are green, runners fulfilling an order are
@@ -36,17 +40,23 @@ make
 
 On launch, click **Load Map** and pick a city to start. In the simulation:
 
-| Key / input             | Effect                                             |
-|--------------------------|-----------------------------------------------------|
-| `E`                      | Toggle edit mode (pauses the simulation)             |
-| Left click (edit mode)   | Select the nearest node                              |
-| `S` (edit mode, node selected) | Mark the selected node as a shop               |
-| `G` (edit mode)          | Save the current city to `new_city.map`              |
-| `L` (edit mode)          | Reload the current city from disk                    |
-| Mouse wheel              | Zoom in/out, centered on the cursor                  |
-| Middle-click drag        | Pan the view                                         |
-| `+`                      | Spawn a new runner at a random node                  |
-| Speed slider (sidebar)   | Drag to scale every runner's movement speed live     |
+| Key / input                    | Effect                                              |
+|----------------------------------|--------------------------------------------------------|
+| `E`                             | Toggle edit mode (pauses the simulation)               |
+| Left click (edit mode)          | Select a node, or click empty space to add a new one   |
+| Left-click-drag (edit mode)     | Move the selected node (streets follow live)           |
+| Shift+click a second node (edit mode) | Connect it to the selected node, or disconnect if already connected |
+| `1` / `2` / `3` (edit mode)     | Set the tier for new connections: Normal/Long/Very Long |
+| `N` (edit mode)                 | Toggle grid snap (25px) for placing/dragging nodes      |
+| `+` / `-` (edit mode)           | Grow/shrink the pending bulk-generate grid size         |
+| `C` (edit mode)                 | Generate a fresh grid at that size, replacing the map   |
+| `S` (edit mode, node selected)  | Mark the selected node as a shop                        |
+| `G` (edit mode)                 | Save the current city to `maps/new_city.map`            |
+| `L` (edit mode)                 | Reload the current city from disk                       |
+| Mouse wheel                     | Zoom in/out, centered on the cursor                     |
+| Middle-click drag                | Pan the view                                           |
+| `+` (not in edit mode)           | Spawn a new runner at a random node                    |
+| Speed slider (sidebar)          | Drag to scale every runner's movement speed live        |
 
 ## How a delivery happens
 
