@@ -1,6 +1,7 @@
 #include <deque>
 #include <iostream>
 #include <limits>
+#include <list>
 #include <SFML/Graphics.hpp>
 #include <SFML/System/Vector2.hpp>
 #include <cmath>
@@ -52,6 +53,12 @@ void dispatchRunnerToDestination(Runner& runner) {
     routeRunnerTo(runner, runner.activeRequest->destination);
 }
 
+float sliderValueFromMouseX(int mouseX, float sliderLeft, float sliderRight, float minValue, float maxValue) {
+    float t = (static_cast<float>(mouseX) - sliderLeft) / (sliderRight - sliderLeft);
+    t = std::max(0.f, std::min(1.f, t));
+    return minValue + t * (maxValue - minValue);
+}
+
 int main()
 {
     // Create a window with a black background
@@ -65,6 +72,15 @@ int main()
     // fixed-to-screen view for the sidebar HUD, unaffected by zoom/pan
     sf::View uiView(window.getDefaultView());
     const float sidebarWidth = 200.f;
+
+    // runner speed slider: a global multiplier applied on top of each runner's own
+    // movement_speed, so it can be adjusted live without touching already-spawned runners
+    const float sliderMargin = 10.f;
+    const float sliderOffsetY = 300.f; // from the top of the sidebar, clear of the stats text
+    const float speedMin = 0.2f;
+    const float speedMax = 5.f;
+    float speedMultiplier = 1.f;
+    bool draggingSlider = false;
 
     sf::Font font;
     bool fontLoaded = font.loadFromFile("assets/arial.ttf");
@@ -104,13 +120,13 @@ int main()
     //std::vector<Node> nodes = createNodes(rows, cols, window);
     std::vector<Node> nodes = loadNodes("maps/lion_city.map"); // Load nodes from file
 
-    //create a deque of `Request` structures. A deque, not a vector, because runners hold
-    //long-lived pointers into it (Runner::activeRequest) that must survive later pushes.
-    std::deque<Request> requests;
+    //create a list of `Request` structures. A list, not a vector/deque, because runners hold
+    //long-lived pointers into it (Runner::activeRequest) that must keep working even after
+    //satisfied requests are erased from the middle - a list never invalidates references to
+    //elements other than the one actually erased.
+    std::list<Request> requests;
     float requestProbability = 0.0001;  // Set the probability of a shop generating a delivery request
 
-    // Create shape for packages
-    std::vector<sf::RectangleShape> packages;
     sf::Clock animationClock;
 
     // Create a circle shape for the nodes
@@ -191,13 +207,28 @@ int main()
                 if (event.mouseButton.button == sf::Mouse::Middle) {
                     panning = true;
                     panAnchorWorld = window.mapPixelToCoords(sf::Mouse::getPosition(window), view);
-                } else if (event.mouseButton.button == sf::Mouse::Left && edit_mode && hoverNode != nullptr) {
-                    closestNode = hoverNode;
-                    std::cout << "Selected node: position=(" << closestNode->position.x << "," << closestNode->position.y << ")" << std::endl;
+                } else if (event.mouseButton.button == sf::Mouse::Left) {
+                    sf::Vector2i mousePixel = sf::Mouse::getPosition(window);
+                    float sliderLeft = window.getSize().x - sidebarWidth + sliderMargin;
+                    float sliderRight = window.getSize().x - sliderMargin;
+                    // The track itself sits 22px below sliderOffsetY (see drawSpeedSlider);
+                    // this hit-box is generous on both sides of it for easy grabbing.
+                    float sliderTop = sliderOffsetY + 12.f;
+                    float sliderBottom = sliderOffsetY + 32.f;
+                    if (mousePixel.x >= sliderLeft && mousePixel.x <= sliderRight &&
+                        mousePixel.y >= sliderTop && mousePixel.y <= sliderBottom) {
+                        draggingSlider = true;
+                        speedMultiplier = sliderValueFromMouseX(mousePixel.x, sliderLeft, sliderRight, speedMin, speedMax);
+                    } else if (edit_mode && hoverNode != nullptr) {
+                        closestNode = hoverNode;
+                        std::cout << "Selected node: position=(" << closestNode->position.x << "," << closestNode->position.y << ")" << std::endl;
+                    }
                 }
             } else if (event.type == sf::Event::MouseButtonReleased) {
                 if (event.mouseButton.button == sf::Mouse::Middle) {
                     panning = false;
+                } else if (event.mouseButton.button == sf::Mouse::Left) {
+                    draggingSlider = false;
                 }
             }
 
@@ -237,6 +268,12 @@ int main()
             window.setView(view);
         }
 
+        if (draggingSlider) {
+            float sliderLeft = window.getSize().x - sidebarWidth + sliderMargin;
+            float sliderRight = window.getSize().x - sliderMargin;
+            speedMultiplier = sliderValueFromMouseX(sf::Mouse::getPosition(window).x, sliderLeft, sliderRight, speedMin, speedMax);
+        }
+
         if (!edit_mode) {
             // Check if the event is a keyPressed
             for (auto& runner : runners) {
@@ -264,6 +301,11 @@ int main()
             }
         }
 
+        // Drop satisfied requests now that nothing points at them any more - the runner
+        // that fulfilled each one already cleared its own activeRequest above, in the same
+        // frame, so no dangling Runner::activeRequest is left behind by the erase.
+        requests.remove_if([](const Request& request) { return request.satisfied; });
+
         // Clear the window
         window.clear(sf::Color::Black);
 
@@ -273,7 +315,7 @@ int main()
             float distance = std::sqrt(distance_to_target.x * distance_to_target.x + distance_to_target.y * distance_to_target.y);
             if (distance > 0) {
                 sf::Vector2f direction = distance_to_target / distance;
-                sf::Vector2f velocity = direction * runner.movement_speed;
+                sf::Vector2f velocity = direction * runner.movement_speed * speedMultiplier;
                 sf::Vector2f new_position = runner.box.getPosition() + velocity;
                 if (distance < runner.movement_speed) {
                     new_position = runner.target_node->position;
@@ -292,10 +334,6 @@ int main()
                 if (node.has_shop && (rand() / float(RAND_MAX)) < requestProbability) {
                     Node* destinationNode = &nodes[rand() % nodes.size()];
                     requests.push_back({&node, nullptr, destinationNode, false, animationClock.getElapsedTime().asSeconds()});
-                    // define the package drawable objects
-                    sf::RectangleShape package(sf::Vector2f(10, 10)); // (width, height) of the rectangle
-                    package.setPosition(node.position);
-                    packages.push_back(package);
                 }
             }
         }
@@ -313,7 +351,7 @@ int main()
 
         drawCity(window, nodes, nodeCircle, streets, shopCircle);
         drawRunners(window, runners);
-        drawRequests(window, requests, packages, animationClock.getElapsedTime().asSeconds());
+        drawRequests(window, requests, animationClock.getElapsedTime().asSeconds());
 
         if (edit_mode) {
             if (hoverNode != nullptr && hoverNode != closestNode) {
@@ -339,16 +377,12 @@ int main()
                     ++numShops;
                 }
             }
-            std::size_t numPendingRequests = 0;
-            for (const auto& request : requests) {
-                if (!request.satisfied) {
-                    ++numPendingRequests;
-                }
-            }
             sf::Vector2f sidebarPosition(window.getSize().x - sidebarWidth, 0.f);
             sf::Vector2f sidebarSize(sidebarWidth, static_cast<float>(window.getSize().y));
             window.setView(uiView);
-            drawSidebar(window, font, sidebarPosition, sidebarSize, edit_mode, runners.size(), numShops, numPendingRequests);
+            drawSidebar(window, font, sidebarPosition, sidebarSize, edit_mode, runners.size(), numShops, requests.size());
+            drawSpeedSlider(window, font, sf::Vector2f(sidebarPosition.x + sliderMargin, sidebarPosition.y + sliderOffsetY),
+                             sidebarWidth - 2.f * sliderMargin, speedMin, speedMax, speedMultiplier);
             window.setView(view);
         }
 

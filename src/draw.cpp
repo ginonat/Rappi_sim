@@ -1,4 +1,6 @@
 #include  "../include/draw.h"
+#include <iomanip>
+#include <sstream>
 #include <string>
 void drawCity(sf::RenderWindow& window, const std::vector<Node>& nodes, sf::CircleShape nodeCircle, const sf::VertexArray& streets, sf::CircleShape& shopCircle) {
     for (const auto& node : nodes) {
@@ -23,17 +25,12 @@ sf::Vector2f quadraticBezier(sf::Vector2f p0, sf::Vector2f p1, sf::Vector2f p2, 
 }
 }
 
-void drawRequests(sf::RenderWindow& window, const std::deque<Request>& requests, std::vector<sf::RectangleShape>& packages, float time) {
-    for (auto& package : packages) {
-        window.draw(package);
-    }
-
+void drawRequests(sf::RenderWindow& window, const std::list<Request>& requests, float time) {
     const int dotCount = 24;
     const float curvature = 0.18f;
     const float flowSpeed = 80.f; // pixels travelled per second, same for every request regardless of distance
 
-    for (std::size_t i = 0; i < requests.size(); ++i) {
-        const Request& request = requests[i];
+    for (const auto& request : requests) {
         if (request.satisfied) {
             continue;
         }
@@ -41,6 +38,14 @@ void drawRequests(sf::RenderWindow& window, const std::deque<Request>& requests,
         // Once a runner has picked up the package, the path is drawn live from the
         // runner's current position instead of the shop's fixed one, and switches to blue.
         bool inTransit = request.designatedRunner != nullptr && request.designatedRunner->hasPackage;
+
+        if (!inTransit) {
+            // Package still waiting at the shop
+            sf::RectangleShape package(sf::Vector2f(10, 10));
+            package.setPosition(request.holder->position);
+            window.draw(package);
+        }
+
         sf::Vector2f p0 = inTransit ? request.designatedRunner->box.getPosition() : request.holder->position;
         sf::Vector2f p2 = request.destination->position;
         sf::Vector2f mid = (p0 + p2) / 2.f;
@@ -84,6 +89,7 @@ void drawRequests(sf::RenderWindow& window, const std::deque<Request>& requests,
 void drawRunners(sf::RenderWindow& window, std::deque<Runner>& runners) {
     for (auto& runner : runners) {
         // Draw the runner
+        runner.box.setFillColor(runner.activeRequest == nullptr ? sf::Color::Green : sf::Color::Blue);
         runner.box.setPosition(runner.box.getPosition() - sf::Vector2f(runner.box.getSize().x/2, runner.box.getSize().y/2));
         window.draw(runner.box);
         runner.box.setPosition(runner.box.getPosition() + sf::Vector2f(runner.box.getSize().x/2, runner.box.getSize().y/2));
@@ -105,7 +111,8 @@ void drawSidebar(sf::RenderWindow& window, const sf::Font& font, const sf::Vecto
         "G  save map (edit)\n"
         "L  load map (edit)\n"
         "+  spawn runner\n"
-        "scroll  zoom\n\n"
+        "scroll  zoom\n"
+        "middle drag  pan\n\n"
         "Stats\n"
         "Mode: " + std::string(edit_mode ? "Edit" : "Running") + "\n"
         "Runners: " + std::to_string(numRunners) + "\n"
@@ -116,6 +123,29 @@ void drawSidebar(sf::RenderWindow& window, const sf::Font& font, const sf::Vecto
     text.setFillColor(sf::Color::White);
     text.setPosition(position + sf::Vector2f(10.f, 10.f));
     window.draw(text);
+}
+
+void drawSpeedSlider(sf::RenderWindow& window, const sf::Font& font, const sf::Vector2f& position, float width,
+                      float minValue, float maxValue, float value) {
+    std::ostringstream label;
+    label << "Speed: " << std::fixed << std::setprecision(2) << value << "x";
+    sf::Text text(label.str(), font, 14);
+    text.setFillColor(sf::Color::White);
+    text.setPosition(position);
+    window.draw(text);
+
+    float trackY = position.y + 22.f;
+    sf::RectangleShape track(sf::Vector2f(width, 4.f));
+    track.setPosition(position.x, trackY);
+    track.setFillColor(sf::Color(90, 90, 90));
+    window.draw(track);
+
+    float t = (value - minValue) / (maxValue - minValue);
+    t = std::max(0.f, std::min(1.f, t));
+    sf::CircleShape handle(6.f);
+    handle.setFillColor(sf::Color(0, 200, 255));
+    handle.setPosition(position.x + t * width - handle.getRadius(), trackY + 2.f - handle.getRadius());
+    window.draw(handle);
 }
 
 
