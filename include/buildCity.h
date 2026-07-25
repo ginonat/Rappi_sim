@@ -1,7 +1,7 @@
-#include <deque>
+#include <list>
 
-std::deque<Node> createNodes(int rows, int cols, sf::RenderWindow& window);
+std::list<Node> createNodes(int rows, int cols, sf::FloatRect bounds);
 
-std::deque<Node> loadNodes(const std::string& filename);
+std::list<Node> loadNodes(const std::string& filename);
 
-void saveNodes(const std::deque<Node>& nodes, const std::string& filename);
+void saveNodes(const std::list<Node>& nodes, const std::string& filename);

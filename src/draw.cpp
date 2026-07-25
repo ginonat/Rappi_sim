@@ -2,7 +2,7 @@
 #include <iomanip>
 #include <sstream>
 #include <string>
-void drawCity(sf::RenderWindow& window, const std::deque<Node>& nodes, sf::CircleShape nodeCircle, const sf::VertexArray& streets, sf::CircleShape& shopCircle) {
+void drawCity(sf::RenderWindow& window, const std::list<Node>& nodes, sf::CircleShape nodeCircle, const sf::VertexArray& streets, sf::CircleShape& shopCircle) {
     for (const auto& node : nodes) {
         if(node.has_shop){
             shopCircle.setPosition(node.position);
@@ -98,7 +98,7 @@ void drawRunners(sf::RenderWindow& window, std::deque<Runner>& runners) {
 
 void drawSidebar(sf::RenderWindow& window, const sf::Font& font, const sf::Vector2f& position, const sf::Vector2f& size,
                   bool edit_mode, std::size_t numRunners, std::size_t numShops, std::size_t numRequests,
-                  const std::string& currentTierLabel, bool gridSnapEnabled, int gridSize) {
+                  const std::string& currentTierLabel, bool gridSnapEnabled, int gridRows, int gridCols, bool gridToolArmed) {
     sf::RectangleShape background(size);
     background.setPosition(position);
     background.setFillColor(sf::Color(15, 15, 15, 220));
@@ -112,12 +112,16 @@ void drawSidebar(sf::RenderWindow& window, const sf::Font& font, const sf::Vecto
         "G  save map (edit)\n"
         "L  load map (edit)\n"
         "click empty (edit)  add node\n"
+        "drag empty (edit)  box select\n"
+        "shift+drag empty (edit)  add to selection\n"
         "shift+click (edit)  connect/disconnect\n"
-        "drag node (edit)  move\n"
-        "1/2/3 (edit)  set street tier\n"
+        "drag node (edit)  move selection\n"
+        "Delete (edit)  delete selection\n"
+        "1/2/3 (edit)  set/apply street tier\n"
         "N (edit)  toggle grid snap\n"
-        "+/- (edit)  grid size\n"
-        "C (edit)  generate grid\n"
+        "Up/Down (edit)  grid rows\n"
+        "Left/Right (edit)  grid cols\n"
+        "C (edit)  arm grid tool, drag to place\n"
         "+  spawn runner\n"
         "scroll  zoom\n"
         "middle drag  pan\n\n"
@@ -131,7 +135,8 @@ void drawSidebar(sf::RenderWindow& window, const sf::Font& font, const sf::Vecto
         body += "\n\nEditor\n"
                 "Tier: " + currentTierLabel + "\n"
                 "Grid snap: " + std::string(gridSnapEnabled ? "On" : "Off") + "\n"
-                "Grid size: " + std::to_string(gridSize) + "x" + std::to_string(gridSize);
+                "Grid: " + std::to_string(gridRows) + " rows x " + std::to_string(gridCols) + " cols\n"
+                "Grid tool: " + std::string(gridToolArmed ? "Armed (drag to place)" : "Idle");
     }
 
     sf::Text text(body, font, 14);
@@ -161,6 +166,17 @@ void drawSpeedSlider(sf::RenderWindow& window, const sf::Font& font, const sf::V
     handle.setFillColor(sf::Color(0, 200, 255));
     handle.setPosition(position.x + t * width - handle.getRadius(), trackY + 2.f - handle.getRadius());
     window.draw(handle);
+}
+
+void drawPreviewRect(sf::RenderWindow& window, const sf::FloatRect& rect, sf::Color color) {
+    sf::RectangleShape box(sf::Vector2f(rect.width, rect.height));
+    box.setPosition(rect.left, rect.top);
+    sf::Color fill = color;
+    fill.a = 40;
+    box.setFillColor(fill);
+    box.setOutlineColor(color);
+    box.setOutlineThickness(1.f);
+    window.draw(box);
 }
 
 namespace {

@@ -1,34 +1,48 @@
+#include <algorithm>
 #include <iostream>
 #include <limits>
 #include <sstream>
 #include <fstream>
 #include <utility>
+#include <vector>
 #include "../include/struct.h"
 #include "../include/buildCity.h"
 
-// Create nodes
-std::deque<Node> createNodes(int rows, int cols, sf::RenderWindow& window) {
-    const float nodeSpacing_x = window.getSize().x / (cols-1);
-    const float nodeSpacing_y = window.getSize().y / (rows-1);
-    std::deque<Node> nodes(rows * cols);
-    int count=0;
+// Create an NxM grid of nodes filling `bounds`. Built via a temporary index vector
+// (row*cols+col -> pointer into the list) since std::list has no operator[] for the
+// index-based lookups the original vector-based version relied on during construction.
+std::list<Node> createNodes(int rows, int cols, sf::FloatRect bounds) {
+    std::list<Node> nodes;
+    std::vector<Node*> index(static_cast<std::size_t>(rows) * cols, nullptr);
+
+    const float nodeSpacing_x = bounds.width / std::max(cols - 1, 1);
+    const float nodeSpacing_y = bounds.height / std::max(rows - 1, 1);
+    int count = 0;
     for (int i = 0; i < rows; i++) {
         for (int j = 0; j < cols; j++) {
-            Node& node = nodes[i * cols + j];
-            node.id=count;
-            count=count+1;
-            node.position = sf::Vector2f(j * nodeSpacing_x + (rand()%20) * nodeSpacing_x/300, i * nodeSpacing_y+ (rand()%20) * nodeSpacing_y/300);
+            Node node;
+            node.id = count;
+            count = count + 1;
+            node.position = sf::Vector2f(bounds.left + j * nodeSpacing_x + (rand()%20) * nodeSpacing_x/300,
+                                          bounds.top + i * nodeSpacing_y + (rand()%20) * nodeSpacing_y/300);
+            nodes.push_back(node);
+            index[i * cols + j] = &nodes.back();
+        }
+    }
+    for (int i = 0; i < rows; i++) {
+        for (int j = 0; j < cols; j++) {
+            Node* node = index[i * cols + j];
             if (i > 0) {
-                node.edges.push_back({&nodes[(i - 1) * cols + j], EdgeTier::Normal});
+                node->edges.push_back({index[(i - 1) * cols + j], EdgeTier::Normal});
             }
             if (j > 0) {
-                node.edges.push_back({&nodes[i * cols + (j - 1)], EdgeTier::Normal});
+                node->edges.push_back({index[i * cols + (j - 1)], EdgeTier::Normal});
             }
             if (i < rows - 1) {
-                node.edges.push_back({&nodes[(i + 1) * cols + j], EdgeTier::Normal});
+                node->edges.push_back({index[(i + 1) * cols + j], EdgeTier::Normal});
             }
             if (j < cols - 1) {
-                node.edges.push_back({&nodes[i * cols + (j + 1)], EdgeTier::Normal});
+                node->edges.push_back({index[i * cols + (j + 1)], EdgeTier::Normal});
             }
         }
     }
@@ -36,7 +50,7 @@ std::deque<Node> createNodes(int rows, int cols, sf::RenderWindow& window) {
 }
 
 namespace {
-Node* findNodeById(std::deque<Node>& nodes, int id) {
+Node* findNodeById(std::list<Node>& nodes, int id) {
     for (auto& node : nodes) {
         if (node.id == id) {
             return &node;
@@ -46,8 +60,8 @@ Node* findNodeById(std::deque<Node>& nodes, int id) {
 }
 }
 
-std::deque<Node> loadNodes(const std::string& filename) {
-    std::deque<Node> nodes;
+std::list<Node> loadNodes(const std::string& filename) {
+    std::list<Node> nodes;
     // Link ids/tiers parsed before all nodes exist, resolved into real Edge pointers once
     // the full node list is available. Indexed in lockstep with `nodes`.
     std::vector<std::vector<std::pair<int, EdgeTier>>> pendingLinks;
@@ -108,7 +122,7 @@ std::deque<Node> loadNodes(const std::string& filename) {
 }
 
 
-void saveNodes(const std::deque<Node>& nodes, const std::string& filename) {
+void saveNodes(const std::list<Node>& nodes, const std::string& filename) {
     std::ofstream file(filename);
     if (file.is_open()) {
         for (const auto& node : nodes) {

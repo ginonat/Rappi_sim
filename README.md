@@ -11,8 +11,9 @@ picks up the package, and takes the shortest path (Dijkstra) to the destination.
 
 - **Start menu** — pick which city to load from a "Load Map" button; every `.map` file in
   `maps/` shows up automatically.
-- **A real map editor** — add nodes, connect/disconnect them, drag them around, snap to a
-  grid, or bulk-generate a fresh grid, all without leaving the app.
+- **A real map editor** — add nodes, connect/disconnect them, drag them around (individually
+  or as a multi-select group via a drag-box), delete a selection, snap to a grid, or
+  drag out a fresh NxM grid sized to two corners you define, all without leaving the app.
 - **Tiered streets** — a connection can be Normal, Long (10x), or Very Long (100x) the
   distance it looks on screen. Drawing that to scale would blow the map up, so instead
   it's color-coded (white/orange/red) and crossed proportionally slower — and routing
@@ -40,23 +41,27 @@ make
 
 On launch, click **Load Map** and pick a city to start. In the simulation:
 
-| Key / input                    | Effect                                              |
-|----------------------------------|--------------------------------------------------------|
-| `E`                             | Toggle edit mode (pauses the simulation)               |
-| Left click (edit mode)          | Select a node, or click empty space to add a new one   |
-| Left-click-drag (edit mode)     | Move the selected node (streets follow live)           |
-| Shift+click a second node (edit mode) | Connect it to the selected node, or disconnect if already connected |
-| `1` / `2` / `3` (edit mode)     | Set the tier for new connections: Normal/Long/Very Long |
-| `N` (edit mode)                 | Toggle grid snap (25px) for placing/dragging nodes      |
-| `+` / `-` (edit mode)           | Grow/shrink the pending bulk-generate grid size         |
-| `C` (edit mode)                 | Generate a fresh grid at that size, replacing the map   |
-| `S` (edit mode, node selected)  | Mark the selected node as a shop                        |
-| `G` (edit mode)                 | Save the current city to `maps/new_city.map`            |
-| `L` (edit mode)                 | Reload the current city from disk                       |
-| Mouse wheel                     | Zoom in/out, centered on the cursor                     |
-| Middle-click drag                | Pan the view                                           |
-| `+` (not in edit mode)           | Spawn a new runner at a random node                    |
-| Speed slider (sidebar)          | Drag to scale every runner's movement speed live        |
+| Key / input                          | Effect                                              |
+|----------------------------------------|--------------------------------------------------------|
+| `E`                                   | Toggle edit mode (pauses the simulation)               |
+| Left click a node (edit mode)         | Select just that node                                  |
+| Left click empty space (edit mode)    | Add a new node there                                   |
+| Drag empty space (edit mode)          | Selection box — selects every node inside it           |
+| Shift+drag empty space (edit mode)    | Same, but adds to the current selection instead of replacing it |
+| Drag a selected node (edit mode)      | Move the whole selection together, spacing preserved   |
+| Shift+click a node (edit mode)        | Toggle a connection between it and every selected node |
+| `1` / `2` / `3` (edit mode)           | Set the tier for new connections (Normal/Long/Very Long); if 2+ nodes are selected, also retiers every existing connection *within* that selection |
+| `Delete` / `Backspace` (edit mode)    | Delete every selected node (and their connections)     |
+| `N` (edit mode)                       | Toggle grid snap (25px) for placing/dragging nodes      |
+| `Up`/`Down`/`Left`/`Right` (edit mode)| Adjust the pending grid tool's rows/cols                |
+| `C` (edit mode)                       | Arm the grid tool — the next drag defines two corners and generates that NxM grid there, replacing the map (`Esc` or `C` again cancels) |
+| `S` (edit mode)                       | Mark every selected node as a shop                      |
+| `G` (edit mode)                       | Save the current city to `maps/new_city.map`            |
+| `L` (edit mode)                       | Reload the current city from disk                       |
+| Mouse wheel                           | Zoom in/out, centered on the cursor                     |
+| Middle-click drag                     | Pan the view                                            |
+| `+` (not in edit mode)                | Spawn a new runner at a random node                     |
+| Speed slider (sidebar)                | Drag to scale every runner's movement speed live        |
 
 ## How a delivery happens
 
