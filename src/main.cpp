@@ -314,10 +314,11 @@ int main()
             sf::Vector2f distance_to_target = runner.target_node->position - runner.box.getPosition();
             float distance = std::sqrt(distance_to_target.x * distance_to_target.x + distance_to_target.y * distance_to_target.y);
             if (distance > 0) {
+                float step = runner.movement_speed * speedMultiplier;
                 sf::Vector2f direction = distance_to_target / distance;
-                sf::Vector2f velocity = direction * runner.movement_speed * speedMultiplier;
+                sf::Vector2f velocity = direction * step;
                 sf::Vector2f new_position = runner.box.getPosition() + velocity;
-                if (distance < runner.movement_speed) {
+                if (distance < step) {
                     new_position = runner.target_node->position;
                     runner.current_node = runner.target_node;
                     runner.running      = false;
