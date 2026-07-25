@@ -30,6 +30,7 @@ struct Request
     Runner* designatedRunner;
     Node* destination;
     bool satisfied;
+    float spawnTime;
 };
 
 // Node struct

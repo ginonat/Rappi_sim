@@ -236,7 +236,7 @@ int main()
                 if (node.has_shop && (rand() / float(RAND_MAX)) < requestProbability) {
                     Node* destinationNode = &nodes[rand() % nodes.size()];
                     Runner* designatedRunner = &runners[rand() % runners.size()];
-                    requests.push_back({&node, designatedRunner, destinationNode, false});
+                    requests.push_back({&node, designatedRunner, destinationNode, false, animationClock.getElapsedTime().asSeconds()});
                     // define the package drawable objects
                     sf::RectangleShape package(sf::Vector2f(10, 10)); // (width, height) of the rectangle
                     package.setPosition(node.position);

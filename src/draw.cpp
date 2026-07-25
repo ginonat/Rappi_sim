@@ -30,8 +30,7 @@ void drawRequests(sf::RenderWindow& window, const std::vector<Request>& requests
 
     const int dotCount = 24;
     const float curvature = 0.18f;
-    const float flowSpeed = 0.35f; // fraction of the path travelled per second
-    const int flowDots = 3;
+    const float flowSpeed = 80.f; // pixels travelled per second, same for every request regardless of distance
 
     for (std::size_t i = 0; i < requests.size(); ++i) {
         const Request& request = requests[i];
@@ -59,10 +58,12 @@ void drawRequests(sf::RenderWindow& window, const std::vector<Request>& requests
             window.draw(dot);
         }
 
-        // Brighter dots flowing from the shop towards the destination, staggered per request
-        float stagger = static_cast<float>(i % 5) * 0.15f;
-        for (int k = 0; k < flowDots; ++k) {
-            float t = std::fmod(time * flowSpeed + stagger + static_cast<float>(k) / flowDots, 1.f);
+        // One brighter dot per request, flowing from the shop towards the destination at a
+        // constant real speed (time since the request was placed, not a path-length fraction,
+        // so short and long routes move at the same pace instead of long ones looking faster).
+        if (distance > 0.f) {
+            float elapsed = time - request.spawnTime;
+            float t = std::fmod(elapsed * flowSpeed / distance, 1.f);
             sf::Vector2f pos = quadraticBezier(p0, p1, p2, t);
             sf::CircleShape flowDot(2.5f);
             flowDot.setFillColor(sf::Color(255, 220, 80, 220));
